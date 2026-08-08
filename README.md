@@ -22,7 +22,7 @@ graph TD
     B -->|15 Günlük Mum/Fiyat Tahmini| D(Çekirdek 2: TradingAgents Komitesi)
     C -->|Son 24 Saat KAP & Haberler| D
     
-    subgraph Yapay Zeka Komitesi (Gemini 2.5 Flash)
+    subgraph Committee [Yapay Zeka Komitesi - Gemini 2.5 Flash]
     D1[Temel Analist]
     D2[Teknik Analist]
     D3[Boğa Araştırmacısı]
