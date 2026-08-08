@@ -1,0 +1,24 @@
+# Çevresel Değişkenler ve API Anahtarları (BUNLAR ASLA GİTHUB'A GİTMEMELİ)
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Veri ve Modeller (GitHub 100MB dosya sınırı vardır, ağırlıklar atılamaz)
+*.safetensors
+*.csv
+*.bin
+*.h5
+*.pt
+*.ckpt
+*.log
+
+# Çıktılar (İsteye bağlı raporlar atılabilir ama çok dolmasın diye)
+outputs/charts/*.png
+outputs/reports/*.md
+
+# IDE ve OS Dosyaları
+.vscode/
+.idea/
+.DS_Store

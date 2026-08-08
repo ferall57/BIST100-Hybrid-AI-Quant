@@ -1,0 +1,42 @@
+data:
+  clip: 5.0
+  data_path: C:/Users/fky06/Documents/KRONOS/bist_data/processed/bist100_unified_kline.csv
+  lookback_window: 256
+  max_context: 512
+  predict_window: 30
+  test_ratio: 0.0
+  train_ratio: 0.9
+  val_ratio: 0.1
+device:
+  device_id: 0
+  use_cuda: true
+experiment:
+  description: BIST 100 Finansal Mum Formasyonları için Özelleştirilmiş Kronos-base
+    Eğitimi
+  name: bist100_custom_finetune
+  skip_existing: false
+  train_basemodel: true
+  train_tokenizer: false
+  use_comet: false
+model_paths:
+  base_path: C:/Users/fky06/Documents/KRONOS/models/bist_kronos/
+  base_save_path: ''
+  basemodel_save_name: basemodel
+  exp_name: bist100_kronos_base
+  finetuned_tokenizer: ''
+  pretrained_predictor: NeoQuasar/Kronos-base
+  pretrained_tokenizer: NeoQuasar/Kronos-Tokenizer-base
+  tokenizer_save_name: tokenizer
+training:
+  accumulation_steps: 16
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_weight_decay: 0.1
+  basemodel_epochs: 25
+  batch_size: 2
+  log_interval: 20
+  num_workers: 0
+  predictor_learning_rate: 1.0e-06
+  seed: 42
+  tokenizer_epochs: 15
+  tokenizer_learning_rate: 0.0002
