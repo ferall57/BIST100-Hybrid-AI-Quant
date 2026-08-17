@@ -6,3 +6,5 @@ matplotlib
 langchain-google-genai
 python-dotenv
 holidays
+scipy
+statsmodels

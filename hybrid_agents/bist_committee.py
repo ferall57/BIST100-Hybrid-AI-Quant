@@ -12,6 +12,7 @@ from hybrid_agents.prompts import (
     BIST_BEAR_RESEARCHER_PROMPT,
     BIST_PORTFOLIO_MANAGER_PROMPT
 )
+from bist_quant.bist_econometrics import BistEconometrics
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -34,6 +35,7 @@ class BistHybridCommittee:
         
         # 3'lü Gemini rotasyon motorunu başlat
         self.llm = GeminiRotator(model_name=gemini_model, temperature=temperature)
+        self.econometric_engine = BistEconometrics()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -151,15 +153,20 @@ class BistHybridCommittee:
         kronos_report, chart_path = ("Kronos Quant verisi hazir degil.", None)
         current_price = 0.0
         recent_history = "Veri okunamadı"
+        econometric_report = "Ekonometrik veri hazır değil."
+        
+        raw_csv = os.path.join(ROOT_DIR, "bist_data", "raw", f"{ticker}_1d.csv")
+        if os.path.exists(raw_csv):
+            df = pd.read_csv(raw_csv)
+            current_price = df["close"].iloc[-1]
+            recent_history = df.tail(5)[["timestamps", "close", "volume"]].to_string(index=False)
+            try:
+                econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
+            except Exception as ee:
+                econometric_report = f"Ekonometrik analiz hatası: {ee}"
         
         if self.quant_engine:
             kronos_report, chart_path = self.quant_engine.generate_quant_report(ticker, pred_len=forecast_days)
-            # Fiyat ve geçmiş özetti alıp formatla
-            raw_csv = os.path.join(ROOT_DIR, "bist_data", "raw", f"{ticker}_1d.csv")
-            if os.path.exists(raw_csv):
-                df = pd.read_csv(raw_csv)
-                current_price = df["close"].iloc[-1]
-                recent_history = df.tail(5)[["timestamps", "close", "volume"]].to_string(index=False)
 
         def extract_text(res):
             if hasattr(res, "content"):
@@ -227,6 +234,7 @@ class BistHybridCommittee:
             current_price=current_price,
             recent_history=recent_history,
             macro_indicators=macro_indicators,
+            econometric_report=econometric_report,
             kronos_report=kronos_report
         )
         res_tech = self.llm.invoke(prompt_tech)
@@ -258,6 +266,7 @@ class BistHybridCommittee:
             current_price=current_price,
             fundamental_report=fundamental_report,
             technical_report=technical_report,
+            econometric_report=econometric_report,
             bull_thesis=bull_thesis,
             bear_thesis=bear_thesis
         )
@@ -267,7 +276,7 @@ class BistHybridCommittee:
         # 5. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Gemini Rotational Agents (TradingAgents Framework)
+**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + Gemini Rotational Multi-Agent Debate
 
 ---
 
@@ -286,6 +295,11 @@ class BistHybridCommittee:
 ## 🔬 KRONOS-BASE KANTİTATİF VE TEKNİK ÖNGÖRÜLER
 {kronos_report}
 *(Görsel Grafik Kayıt Yeri: `{chart_path}`)*
+
+---
+
+## 📐 KLASİK EKONOMETRİ & 1.000 YOLLU MONTE CARLO SİMÜLASYONU
+{econometric_report}
 
 ---
 
