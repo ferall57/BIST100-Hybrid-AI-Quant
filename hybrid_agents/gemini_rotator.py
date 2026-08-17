@@ -45,12 +45,12 @@ class GeminiRotator:
         # Öncelik: GOOGLE_API_KEY_1, _2, _3 vb.
         for i in range(1, 10):
             k = os.getenv(f"GOOGLE_API_KEY_{i}") or os.getenv(f"GEMINI_API_KEY_{i}")
-            if k and k.strip() and k.strip() != "BURAYA_API_KEY_1_YAZIN" and k.strip() not in keys:
+            if k and k.strip() and not k.strip().startswith("BURAYA_API_KEY") and k.strip() not in keys:
                 keys.append(k.strip())
         # Eğer numaralı yoksa tekli GOOGLE_API_KEY ya da GEMINI_API_KEY bak
         if not keys:
             single = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-            if single and single.strip() and single.strip() != "BURAYA_API_KEY_YAZIN":
+            if single and single.strip() and not single.strip().startswith("BURAYA_API_KEY"):
                 keys.append(single.strip())
         return keys
 

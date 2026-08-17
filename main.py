@@ -22,6 +22,7 @@ from bist_quant.bist_downloader import download_bist_universe, download_ticker_d
 from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee
+from bist_quant.bist_scanner import BistScanner
 
 def banner():
     print("""
@@ -30,6 +31,7 @@ def banner():
 --------------------------------------------------------------------------------
  [*] Cekirdek 1 : Kronos-Base Foundation Model (102.3M Parametre - Mum Tahmincisi)
  [*] Cekirdek 2 : TradingAgents Coklu Yapay Zeka Komitesi (Bull vs Bear Debate)
+ [*] Cekirdek 3 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
  [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
 ================================================================================
 """)
@@ -59,13 +61,20 @@ def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-pro", t
         print("="*80)
         print(verdict)
         print("="*80)
-        print(f"Tam Komite Tartisma Rapory : {report_file}")
+        print(f"Tam Komite Tartisma Raporu : {report_file}")
         if chart_file:
             print(f"Fiyat Projeksiyon Grafigi  : {chart_file}")
     except Exception as e:
         print(f"\n[KOMITE HATASI] Analiz sirasinda problem olustu: {e}")
         if "api anahtar" in str(e).lower() or "not found" in str(e).lower():
             print("[BILGI] Lutfen .env dosyanizdaki GOOGLE_API_KEY_1, _2, _3 degerlerini kontrol ettiginizden emin olun!")
+
+def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-2.5-pro", temp: float = 0.2):
+    try:
+        scanner = BistScanner(gemini_model=model, temperature=temp)
+        scanner.scan_and_report(mode=mode, top_n=top_n, forecast_days=days)
+    except Exception as e:
+        print(f"\n[TARAMA HATASI] Tarama sirasinda problem olustu: {e}")
 
 def main():
     banner()
@@ -74,11 +83,13 @@ def main():
     # Komut Modları
     parser.add_argument("--download-all", action="store_true", help="Tum BIST 100 gecmis gunluk/saatlik verilerini indir ve hazirla")
     parser.add_argument("--download-mode", default="bist100", choices=["bist100", "bist30"], help="Indirilecek hisse evreni (Varsayilan: bist100)")
-    parser.add_argument("--train-kronos", action="store_true", help="Kronos-base modelini BIST 100 uzerinde ulasacak Derin Egitimi baslat")
+    parser.add_argument("--train-kronos", action="store_true", help="Kronos-base modelini BIST 100 uzerinde uygulanacak Derin Egitimi baslat")
     parser.add_argument("--train-predictor", action="store_true", help="Tokenizer egitimini atlayıp dogrudan Tahminci (Predictor) motorunun derin egitimine basla")
     parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Secilen BIST hissesinde (Orn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu uret")
+    parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
     
     # Opsiyonel parametreler
+    parser.add_argument("--top", type=int, default=5, help="Tarama modunda derin analize girecek hisse sayisi (Varsayilan: 5)")
     parser.add_argument("--days", type=int, default=15, help="Kronos-base quant projeksiyon gun sayisi (Varsayilan: 15)")
     parser.add_argument("--model", type=str, default="gemini-2.5-pro", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-2.5-pro)")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayisi")
@@ -104,6 +115,9 @@ def main():
         
     if args.analyze:
         handle_analyze(args.analyze, days=args.days, model=args.model)
+
+    if args.scan:
+        handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)
 
 if __name__ == "__main__":
     main()

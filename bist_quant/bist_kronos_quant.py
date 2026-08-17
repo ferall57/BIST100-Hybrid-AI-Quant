@@ -89,13 +89,18 @@ class BistKronosQuant:
         x_df = hist_df[["open", "high", "low", "close", "volume", "amount"]]
         x_timestamp = hist_df["timestamps"]
         
-        # Gelecekteki tarihleri hesapla (Hafta sonları hariç BIST işlem günleri)
+        # Gelecekteki tarihleri hesapla (Hafta sonları ve Resmi Tatiller hariç BIST işlem günleri)
+        import holidays
         last_date = x_timestamp.iloc[-1]
         y_timestamps = []
         cur_date = last_date
+        
+        tr_holidays = holidays.Turkey(years=[cur_date.year, cur_date.year + 1])
+        
         while len(y_timestamps) < pred_len:
             cur_date += timedelta(days=1)
-            if cur_date.weekday() < 5: # Pazartesi(0)-Cuma(4)
+            # Cumartesi(5) ve Pazar(6) günlerini atla, resmi tatilleri atla
+            if cur_date.weekday() < 5 and cur_date not in tr_holidays:
                 y_timestamps.append(cur_date)
         y_timestamp_series = pd.Series(y_timestamps)
         

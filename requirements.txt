@@ -1,0 +1,8 @@
+pandas
+numpy
+yfinance
+torch
+matplotlib
+langchain-google-genai
+python-dotenv
+holidays
