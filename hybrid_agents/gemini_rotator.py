@@ -93,17 +93,18 @@ class GeminiRotator:
             except Exception as e:
                 err_str = str(e).lower()
                 attempts += 1
-                # Kota, Rate Limit, ResourceExhausted, 429 kontrolü
-                if any(x in err_str for x in ["429", "quota", "exhausted", "rate limit", "permission", "limit"]):
-                    print(f"⚠️ API Kota Sınırı / Bekleme Uyarısı ({e}). Başka API anahtarına deniniyor... (Deneme: {attempts}/{len(self.api_keys)*2})")
+                # Kota, Rate Limit, ResourceExhausted, 429 veya 503 Sunucu Yoğunluğu kontrolü
+                is_transient = any(x in err_str for x in ["429", "503", "quota", "exhausted", "rate limit", "permission", "limit", "unavailable", "high demand", "overloaded"])
+                if is_transient:
+                    print(f"⚠️ API Kota / Sunucu Yoğunluk Uyarısı ({e}). Başka API anahtarına deneniyor... (Deneme: {attempts}/{len(self.api_keys)*2})")
                     self.rotate_key(str(e))
-                    time.sleep(1)  # Kısa bir geçiş zamanlayıcısı
+                    time.sleep(2)  # Sunucunun toparlanması için kısa bekleme
                 else:
-                    # Diğer sistemsel veya söz dizimi hatalarında da 1 kez şans verelim, sonra yansıtalım
-                    if attempts >= len(self.api_keys):
+                    if attempts >= (len(self.api_keys) * 2):
                         raise e
-                    print(f"⚠️ Beklenmeyen Hata: {e} -> Diğer API anahtarında tekrar deneniyor...")
+                    print(f"⚠️ Geçici Bağlantı Hatası: {e} -> Diğer API anahtarında tekrar deneniyor...")
                     self.rotate_key(str(e))
+                    time.sleep(1)
         
         raise RuntimeError("❌ Tüm Gemini API anahtarları denendi fakat kota veya bağlantı sınırı aşılamadı.")
 
