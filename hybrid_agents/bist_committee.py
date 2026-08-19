@@ -135,7 +135,11 @@ class BistHybridCommittee:
             
         print(f"\n🚀 === [{ticker}] İÇİN HİBRİT YAPAY ZEKA YATIRIM KOMİTESİ ANALİZİ BAŞLADI ===")
         
-        # 0. Yahoo Finance Anlık Meta Verisi & Güncel Fiyatlar
+        # 0. Yahoo Finance Canlı Veri Setini İndir ve Güncelle
+        print(f"📥 [CANLI PİYASA] {ticker} için en güncel OHLCV verileri Yahoo Finance'ten çekiliyor...")
+        from bist_quant.bist_downloader import download_ticker_data
+        download_ticker_data(ticker, period="5y", interval="1d", save_dir=os.path.join(ROOT_DIR, "bist_data", "raw"))
+
         ticker_obj = yf.Ticker(ticker)
         info = {}
         try:
@@ -147,23 +151,24 @@ class BistHybridCommittee:
         # Finansal rasyoları ve makro verileri hazırla
         financial_ratios = self._format_financial_ratios(info)
         macro_indicators = self._fetch_macro_indicators()
-            
-        # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
-        print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
-        kronos_report, chart_path = ("Kronos Quant verisi hazir degil.", None)
+
+        raw_csv = os.path.join(ROOT_DIR, "bist_data", "raw", f"{ticker}_1d.csv")
         current_price = 0.0
         recent_history = "Veri okunamadı"
         econometric_report = "Ekonometrik veri hazır değil."
         
-        raw_csv = os.path.join(ROOT_DIR, "bist_data", "raw", f"{ticker}_1d.csv")
         if os.path.exists(raw_csv):
             df = pd.read_csv(raw_csv)
-            current_price = df["close"].iloc[-1]
+            current_price = float(df["close"].iloc[-1])
             recent_history = df.tail(5)[["timestamps", "close", "volume"]].to_string(index=False)
             try:
                 econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
             except Exception as ee:
                 econometric_report = f"Ekonometrik analiz hatası: {ee}"
+            
+        # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
+        print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
+        kronos_report, chart_path = ("Kronos Quant verisi hazir degil.", None)
         
         if self.quant_engine:
             kronos_report, chart_path = self.quant_engine.generate_quant_report(ticker, pred_len=forecast_days)
