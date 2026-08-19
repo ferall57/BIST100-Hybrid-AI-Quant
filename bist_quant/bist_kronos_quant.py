@@ -139,9 +139,9 @@ class BistKronosQuant:
 
 ## 📊 Özet Matematiksel Öngörüler
 * **Anlık Güncel Kapanış Fiyatı:** {current_close:.2f} TRY
-* **Hedef Kapanış (N={pred_len} gün):** {pred_target:.2f} TRY (**Beklenen Getiri: %{expected_return:.2f}**)
+* **Hedef Kapanış (N={pred_len} gün):** {pred_target:.2f} TRY (**Beklenen Getiri: %{expected_return:+.2f}**)
 * **Tahmin Edilen En Yüksek Nokta (Zirve):** {pred_max:.2f} TRY (Maksimum Potansiyel: +%{max_upside:.2f})
-* **Tahmin Edilen En Düşük Nokta (Dip/Destek):** {pred_min:.2f} TRY (Maksimum Risk: %{max_downside:.2f})
+* **Tahmin Edilen En Düşük Nokta (Dip/Destek):** {pred_min:.2f} TRY (Olası Geri Çekilme / Marj: %{max_downside:+.2f})
 
 ## 🔬 Kronos-Base Yapay Zeka Değerlendirmesi
 Kronos-Base temel finans modeli, BIST piyasasının geçmiş mum örüntülerini ve hacim akışlarını analiz ederek önümüzdeki {pred_len} işlem gününde %{expected_return:.2f} seviyesinde bir yönlü trend öngörmüştür. Model, fiyat kümülasyonlarında olası oynaklıklara karşı {pred_min:.2f} TRY seviyesini stratejik bir teknik destek, {pred_max:.2f} TRY seviyesini ise direnç bandı olarak işaret etmektedir.

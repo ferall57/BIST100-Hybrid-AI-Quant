@@ -74,7 +74,22 @@ class BistHybridCommittee:
         pb = _val("priceToBook", "{:.2f}")
         ev_ebitda = _val("enterpriseToEbitda", "{:.2f}")
         roe = _val("returnOnEquity", "{:.2f}", mul=100.0, suffix="%")
-        div_yield = _val("dividendYield", "{:.2f}", mul=100.0, suffix="%")
+        
+        # Temettü verimi: yfinance BIST hisselerinde bazen 4.36 (yüzde), bazen 0.0436 (oran) döndürür
+        raw_div = info.get("dividendYield")
+        div_yield = "N/A"
+        if raw_div is not None and raw_div != "":
+            try:
+                d_val = float(raw_div)
+                if d_val > 1.0:
+                    div_yield = f"%{d_val:.2f}"
+                elif d_val > 0:
+                    div_yield = f"%{d_val * 100.0:.2f}"
+                else:
+                    div_yield = "%0.00"
+            except (ValueError, TypeError):
+                div_yield = str(raw_div)
+
         beta = _val("beta", "{:.2f}")
         high_52 = _val("fiftyTwoWeekHigh", "{:.2f}", suffix=" TRY")
         low_52 = _val("fiftyTwoWeekLow", "{:.2f}", suffix=" TRY")
