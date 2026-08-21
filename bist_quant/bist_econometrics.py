@@ -206,9 +206,18 @@ class BistEconometrics:
             for t in range(1, days + 1):
                 price_paths[t] = price_paths[t - 1] * step_factors[t - 1]
                 
-            # N gün sonundaki nihai fiyat dağılımı
+            # 1. 1-Haftalık (5. Gün / Kısa Vade) Fiyat Dağılımı
+            idx_5d = min(5, days)
+            prices_5d = price_paths[idx_5d]
+            median_5d = float(np.median(prices_5d))
+            ci_95_l_5d = float(np.percentile(prices_5d, 5))
+            ci_95_u_5d = float(np.percentile(prices_5d, 95))
+            prob_pos_5d = float((np.sum(prices_5d > current_price) / num_sims) * 100.0)
+            var_95_5d = float(((current_price - ci_95_l_5d) / current_price) * 100.0)
+            ret_5d_pct = float(((median_5d - current_price) / current_price) * 100.0)
+
+            # 2. Orta Vadeli (N Günlük) Fiyat Dağılımı
             final_prices = price_paths[-1]
-            
             median_price = float(np.median(final_prices))
             mean_price = float(np.mean(final_prices))
             pct_5 = float(np.percentile(final_prices, 5))   # %95 VaR alt sınırı
@@ -227,6 +236,14 @@ class BistEconometrics:
 
             return {
                 "current_price": current_price,
+                # 1 Hafta (5 Gün)
+                "median_5d": median_5d,
+                "expected_return_5d_pct": ret_5d_pct,
+                "ci_95_lower_5d": ci_95_l_5d,
+                "ci_95_upper_5d": ci_95_u_5d,
+                "prob_positive_5d": prob_pos_5d,
+                "var_95_5d": var_95_5d,
+                # Orta Vade (N Gün)
                 "median_target": median_price,
                 "mean_target": mean_price,
                 "expected_return_pct": expected_mc_return,
@@ -242,6 +259,12 @@ class BistEconometrics:
         except Exception as e:
             return {
                 "current_price": 0.0,
+                "median_5d": 0.0,
+                "expected_return_5d_pct": 0.0,
+                "ci_95_lower_5d": 0.0,
+                "ci_95_upper_5d": 0.0,
+                "prob_positive_5d": 50.0,
+                "var_95_5d": 3.0,
                 "median_target": 0.0,
                 "mean_target": 0.0,
                 "expected_return_pct": 0.0,
@@ -282,13 +305,11 @@ class BistEconometrics:
 | **Tarihsel Volatilite (60G)** | %{vol_res.get('hist_volatility', 0.0):.2f} (Yıllık) | Rejim: **{vol_res.get('volatility_regime', 'Normal')}** |
 | **Parkinson Volatilitesi** | %{vol_res.get('parkinson_volatility', 0.0):.2f} (High-Low) | Gün içi oynaklık dalga boyu |
 | **Mevsimsellik Gücü** | {seas_res.get('seasonal_strength', 'Nötr')} | En Güçlü Gün: **{seas_res.get('best_day', 'N/A')}** (%{seas_res.get('best_day_ret', 0.0):+.2f}), En Zayıf: **{seas_res.get('worst_day', 'N/A')}** (%{seas_res.get('worst_day_ret', 0.0):+.2f}) |
-| **Monte Carlo Medyan Hedef (15G)**| **{med_t:.2f} TRY** (Getiri: **%{ret_pct:+.2f}**) | 1.000 stokastik Geometrik Brown Hareketi medyan simülasyonu |
-| **Yükseliş Olasılığı (Win Rate)** | **%{prob_pos:.1f}** | 1.000 simülasyon yolunun pozitif kapanma oranı |
-| **%95 Güven Aralığı Bandı** | **[{ci_95_l:.2f} TRY - {ci_95_u:.2f} TRY]** | Hissenin 15 gün içinde %95 olasılıkla kalacağı fiyat koridoru |
-| **Parametrik VaR (%95 Risk)** | **-%{var_95:.2f}** | %95 güven düzeyinde 15 günde maruz kalınabilecek maksimum kayıp sınırı |
+| **1 Haftalık Monte Carlo (5G)**| **{mc_res['median_5d']:.2f} TRY** (Getiri: **%{mc_res['expected_return_5d_pct']:+.2f}**) | %95 Güven: **[{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY]**, Kazanma: **%{mc_res['prob_positive_5d']:.1f}**, 5G VaR: **-%{mc_res['var_95_5d']:.2f}** |
+| **Orta Vadeli Monte Carlo ({forecast_days}G)**| **{med_t:.2f} TRY** (Getiri: **%{ret_pct:+.2f}**) | %95 Güven: **[{ci_95_l:.2f} - {ci_95_u:.2f} TRY]**, Kazanma: **%{prob_pos:.1f}**, {forecast_days}G VaR: **-%{var_95:.2f}** |
 
 **Ekonometrik Sentez:**
-{stat_res.get('interpretation', '')} 1.000 yollu Monte Carlo stokastik simülasyonu hissede 15 günlük vadede %{prob_pos:.1f} olasılıkla pozitif getiri eğilimi olduğunu ve medyan fiyat beklentisinin {med_t:.2f} TRY (%{ret_pct:+.2f}) seviyesinde kümelendiğini matematiksel olarak kanıtlamaktadır. %95 Güven Aralığı [{ci_95_l:.2f} - {ci_95_u:.2f} TRY] koridorunu işaret etmektedir.
+{stat_res.get('interpretation', '')} 1.000 yollu Monte Carlo stokastik simülasyonu; hissede **1 haftalık vadede** %{mc_res['prob_positive_5d']:.1f} kazanma olasılığıyla {mc_res['median_5d']:.2f} TRY (%{mc_res['expected_return_5d_pct']:+.2f}) medyan seviyesini [{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY bandı], **{forecast_days} günlük orta vadede** ise %{prob_pos:.1f} kazanma olasılığıyla {med_t:.2f} TRY (%{ret_pct:+.2f}) medyan seviyesini [{ci_95_l:.2f} - {ci_95_u:.2f} TRY bandı] işaret etmektedir.
 """
         return report
 

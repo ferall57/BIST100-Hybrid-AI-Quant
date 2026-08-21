@@ -95,27 +95,28 @@ BULL TEZİ:
 BEAR KONTRA-TEZİ:
 {bear_thesis}
 
-Sen bu masadan çıkan tartışmayı tarafsızca değerlendiren nihai hakimsin. Aşağıdaki Kurumsal Format ile Nihai Komite Kararını (Executive Decision) üret:
+Sen bu masadan çıkan tartışmayı tarafsızca değerlendiren nihai hakimsin. Aşağıdaki Kurumsal Format ile Nihai Komite Kararını (Executive Decision) üret. Özellikle hem 1 Haftalık (Kısa Vade) hem de 15-30 Günlük (Orta Vade) hedefleri ayrı ayrı netleştir:
 
 # 🏆 NİHAİ YATIRIM KOMİTESİ KARAR RAPORU ({ticker})
 
 ## 1. 🎯 Karar ve Derece (Rating & Verdict)
 * **YATIRIM KARARI:** [Güçlü AL (Strong Buy) / AL (Buy) / TUT (Hold) / SAT (Sell) / Güçlü SAT (Strong Sell)] - *(Bir tanesini seç)*
 * **Güven Katsayısı (Confidence):** % [10 ile 100 arasında net bir oran]
-* **Hedef Fiyat Bandı (N Günlük):** [X.XX TRY - Y.YY TRY]
+* **1 Haftalık (Kısa Vade) Hedef Bandı:** [X.XX TRY - Y.YY TRY] (Örn: %+X.X getiri potansiyeli)
+* **15-30 Günlük (Orta Vade) Hedef Bandı:** [X.XX TRY - Y.YY TRY] (Örn: %+Y.Y getiri potansiyeli)
 * **Önerilen Portföy Ağırlığı (Allocation):** % [Örn: %3 - %10 arası]
 
 ## 2. ⚖️ Boğa-Ayı Tartışma Muhakemesi
-*(Masada Boğanın mı yoksa Ayının mı hangi gerekçelerle galip geldiğinin tek paragraf net anlatımı)*
+*(Masada Boğanın mı yoksa Ayının mı hangi gerekçelerle galip geldiğinin tek paragraf net analitik anlatımı)*
 
 ## 3. 🛡️ Risk Yönetimi ve Stratejik Öneriler
 * **Stop-Loss (Zarar Kes) Seviyesi:** [Fiyat] TRY
-* **İşlem Taktik Önerisi:** [Örn: Destekten kademeli alım, kırılımla takip, vb.]
+* **İşlem Taktik Önerisi:** [Örn: Mevcut fiyattan kademeli giriş, 1 haftalık direnç kırılımında pozisyon artırma, vb.]
 
 ## 4. 🔬 Ekonometrik & Matematiksel Doğrulama (XAI - Açıklanabilirlik)
-* **Monte Carlo Yükseliş Olasılığı (Win Rate):** % [Monte Carlo'dan gelen oran]
-* **Parametrik VaR (%95 Risk Limiti):** % [VaR oranı]
-* **Karar Etki Ağırlıkları (XAI):** [Örn: %35 Bilanço İskontosu, %30 Quant/Monte Carlo Getirisi, %20 KAP Haber Katalizörü, %15 Volatilite Risk Primi]
+* **Monte Carlo Yükseliş Olasılığı (Win Rate):** 1 Haftalık: % [1H Oran] | Orta Vadeli: % [Orta Vade Oran]
+* **Parametrik VaR (%95 Risk Limiti):** 1 Haftalık: % [1H VaR] | Orta Vadeli: % [Orta Vade VaR]
+* **Karar Etki Ağırlıkları (XAI):** [Örn: %35 Bilanço İskontosu, %30 Quant & Hacim Örüntüsü, %20 Risk/Ödül Oranı, %15 KAP Katalizörü]
 
 ---
 *(Bu rapor Antigravity tarafından BIST 100 Hibrit AI Komitesi ile oluşturulmuştur. Kesinlikle doğrudan bir finansal tavsiye (ytd) niteliği taşımaz.)*

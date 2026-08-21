@@ -86,30 +86,36 @@ class BistScanner:
                         top_p=0.9,
                         sample_count=1
                     )
-                    pred_close = pred_df["close"].iloc[-1]
+                    step_1w = min(4, len(pred_df) - 1)
+                    pred_1w_close = float(pred_df["close"].iloc[step_1w])
+                    expected_return_1w = ((pred_1w_close - current_close) / current_close) * 100.0
+                    pred_close = float(pred_df["close"].iloc[-1])
                     expected_return = ((pred_close - current_close) / current_close) * 100.0
                 except Exception:
                     # Hata olursa momentum bazlı yedek getiri skoru
                     sma_20 = df["close"].tail(20).mean()
                     expected_return = ((current_close - sma_20) / sma_20) * 50.0
+                    expected_return_1w = expected_return * 0.4
             else:
                 # Quant motoru yoksa teknik momentum skoru
                 sma_20 = df["close"].tail(20).mean()
                 sma_50 = df["close"].tail(50).mean()
                 expected_return = (((current_close - sma_20) / sma_20) + ((sma_20 - sma_50) / sma_50)) * 50.0
+                expected_return_1w = expected_return * 0.4
 
             if expected_return > 3.0:
                 trend_label = "🔥 YÜKSELİŞ"
             elif expected_return < -2.0:
                 trend_label = "❄️ DÜŞÜŞ"
 
-            # Skorlama: Quant getiri potansiyeli + hacim desteği + iskonto payı
-            score = (expected_return * 1.5) + (discount_to_high * 0.3) + (min(vol_ratio, 3.0) * 2.0)
+            # Skorlama: Quant getiri potansiyeli + 1H momentum + hacim desteği + iskonto payı
+            score = (expected_return * 1.2) + (expected_return_1w * 1.5) + (discount_to_high * 0.3) + (min(vol_ratio, 3.0) * 2.0)
 
             return {
                 "ticker": ticker,
                 "close": current_close,
                 "daily_change": daily_change,
+                "expected_return_1w": expected_return_1w,
                 "expected_return": expected_return,
                 "trend": trend_label,
                 "vol_ratio": vol_ratio,
@@ -125,7 +131,7 @@ class BistScanner:
         print(f"🔍 BIST OTOMATIK TARAMA MOTORU (SCREENER) BASLATILDI")
         print(f"📊 Hedef Evren : {mode.upper()} ({len(tickers)} Hisse)")
         print(f"🎯 Hedef Filtre: En Yüksek Potansiyelli İlk {top_n} Hisse")
-        print(f"🔮 Quant Vade  : {forecast_days} İşlem Günü")
+        print(f"🔮 Quant Vade  : 1 Hafta (5G) & {forecast_days} İşlem Günü")
         print("="*80)
 
         # 1. AŞAMA: Hızlı Ön Eleme (Funnel 1)
@@ -147,10 +153,10 @@ class BistScanner:
         top_candidates = candidates[:top_n]
 
         print(f"\n🏆 [ÖN ELEME SONUCU] EN YÜKSEK POTANSİYELLİ İLK {top_n} HİSSE BELİRLENDİ:")
-        print(f"{'Sıra':<5} {'Sembol':<10} {'Fiyat (TRY)':<14} {'Günlük %':<10} {'Quant Getiri %':<16} {'Trend':<14} {'Zirve İskonto %':<15}")
+        print(f"{'Sıra':<5} {'Sembol':<10} {'Fiyat (TRY)':<14} {'Günlük %':<10} {'1H Getiri %':<14} {'{0}G Getiri %'.format(forecast_days):<14} {'Trend':<12}")
         print("-" * 85)
         for idx, c in enumerate(top_candidates, 1):
-            print(f"{idx:<5} {c['ticker']:<10} {c['close']:<14.2f} {c['daily_change']:<+10.2f} {c['expected_return']:<+16.2f} {c['trend']:<14} %{c['discount_to_high']:<14.1f}")
+            print(f"{idx:<5} {c['ticker']:<10} {c['close']:<14.2f} {c['daily_change']:<+10.2f} {c['expected_return_1w']:<+14.2f} {c['expected_return']:<+14.2f} {c['trend']:<12}")
         print("-" * 85)
 
         # 2. AŞAMA: Seçilen İlk N Hisse İçin Derin Komite Analizi
@@ -168,7 +174,8 @@ class BistScanner:
                 # Karar raporundan önemli satırları ayıkla
                 rating = "N/A"
                 conf = "N/A"
-                target_band = "N/A"
+                target_1w = "N/A"
+                target_mid = "N/A"
                 alloc = "N/A"
                 stop_loss = "N/A"
                 
@@ -179,8 +186,13 @@ class BistScanner:
                         rating = clean_line.split(":", 1)[1].strip()
                     elif re.search(r"g[uü]ven\s+katsay[ıi]s[ıi]", clean_line, re.IGNORECASE) and ":" in clean_line:
                         conf = clean_line.split(":", 1)[1].strip()
+                    elif re.search(r"1\s*haftal[ıi]k.*hedef", clean_line, re.IGNORECASE) and ":" in clean_line:
+                        target_1w = clean_line.split(":", 1)[1].strip()
+                    elif re.search(r"(orta\s+vade|\d+\s*g[uü]nl[uü]k).*hedef", clean_line, re.IGNORECASE) and ":" in clean_line:
+                        target_mid = clean_line.split(":", 1)[1].strip()
                     elif re.search(r"hedef\s+fiyat", clean_line, re.IGNORECASE) and ":" in clean_line:
-                        target_band = clean_line.split(":", 1)[1].strip()
+                        if target_mid == "N/A":
+                            target_mid = clean_line.split(":", 1)[1].strip()
                     elif re.search(r"(portf[oö]y|tahsisat|pay[ıi])", clean_line, re.IGNORECASE) and ":" in clean_line:
                         alloc = clean_line.split(":", 1)[1].strip()
                     elif re.search(r"stop[\s\-_]*loss|zarar\s+kes", clean_line, re.IGNORECASE) and ":" in clean_line:
@@ -190,10 +202,12 @@ class BistScanner:
                     "rank": idx,
                     "ticker": t,
                     "close": c["close"],
+                    "expected_return_1w": c["expected_return_1w"],
                     "expected_return": c["expected_return"],
                     "rating": rating,
                     "confidence": conf,
-                    "target_band": target_band,
+                    "target_1w": target_1w,
+                    "target_mid": target_mid,
                     "allocation": alloc,
                     "stop_loss": stop_loss,
                     "verdict": verdict,
@@ -210,17 +224,18 @@ class BistScanner:
 
         table_rows = ""
         for r in committee_results:
-            table_rows += f"| **#{r['rank']} {r['ticker']}** | {r['close']:.2f} TRY | **%{r['expected_return']:+.2f}** | **{r['rating']}** | {r['confidence']} | {r['target_band']} | {r['allocation']} | {r['stop_loss']} |\n"
+            table_rows += f"| **#{r['rank']} {r['ticker']}** | {r['close']:.2f} TRY | **%{r['expected_return_1w']:+.2f}** | **%{r['expected_return']:+.2f}** | **{r['rating']}** | {r['confidence']} | {r['target_1w']} | {r['target_mid']} | {r['allocation']} | {r['stop_loss']} |\n"
 
         individual_sections = ""
         for r in committee_results:
             individual_sections += f"""
 ---
 ### 📌 #{r['rank']} - {r['ticker']} Komite Karar Özeti
-* **Fiyat:** {r['close']:.2f} TRY | **Quant Tahmin Getirisi:** %{r['expected_return']:+.2f}
+* **Fiyat:** {r['close']:.2f} TRY | **1H Quant Getirisi:** %{r['expected_return_1w']:+.2f} | **{forecast_days}G Quant Getirisi:** %{r['expected_return']:+.2f}
 * **Yatırım Kararı:** **{r['rating']}** ({r['confidence']})
-* **Hedef Fiyat:** {r['target_band']} | **Stop-Loss:** {r['stop_loss']}
-* **Önerilen Portföy Payı:** {r['allocation']}
+* **1 Haftalık Hedef:** {r['target_1w']}
+* **Orta Vadeli Hedef:** {r['target_mid']}
+* **Stop-Loss:** {r['stop_loss']} | **Önerilen Portföy Payı:** {r['allocation']}
 * 📄 [Tam Komite Tartışma Raporu](file:///{r['report_file'].replace('\\', '/')})
 * 📊 [Projeksiyon Grafiği](file:///{r['chart_file'].replace('\\', '/') if r['chart_file'] else 'N/A'})
 
@@ -237,8 +252,8 @@ class BistScanner:
 
 ## 📊 1. LİDER HİSSELER KARŞILAŞTIRMA TABLOSU
 
-| Hisse | Anlık Fiyat | Quant Getiri (%) | Komite Kararı | Güven | Hedef Fiyat Bandı | Portföy Payı | Stop-Loss |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Hisse | Anlık Fiyat | 1H Quant Getiri | {forecast_days}G Quant Getiri | Komite Kararı | Güven | 1 Haftalık Hedef | Orta Vadeli Hedef | Portföy Payı | Stop-Loss |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 {table_rows}
 
 ---
@@ -253,16 +268,15 @@ class BistScanner:
             f.write(digest_md)
 
         # 4. KONSOLA GÖRSEL ŞIK BİR ÖZET BAS
-        print("\n" + "="*85)
+        print("\n" + "="*95)
         print(f"🏆 BIST {mode.upper()} TARAMA TAMAMLANDI - KONSOLİDE SONUÇ ÖZETİ")
-        print("="*85)
-        print(f"{'Sıra':<5} {'Hisse':<10} {'Fiyat':<10} {'Quant Getiri':<14} {'Karar':<18} {'Güven':<10} {'Hedef Fiyat':<18}")
-        print("-" * 85)
+        print("="*95)
+        print(f"{'Sıra':<5} {'Hisse':<10} {'Fiyat':<10} {'1H Getiri':<12} {'Orta Vade':<12} {'Karar':<16} {'Güven':<10} {'1H Hedef':<14} {'Orta Hedef':<14}")
+        print("-" * 95)
         for r in committee_results:
-            print(f"#{r['rank']:<4} {r['ticker']:<10} {r['close']:<10.2f} %{r['expected_return']:<12.2f} {r['rating']:<18} {r['confidence']:<10} {r['target_band']:<18}")
-        print("="*85)
+            print(f"{r['rank']:<5} {r['ticker']:<10} {r['close']:<10.2f} %{r['expected_return_1w']:<10.2f} %{r['expected_return']:<10.2f} {r['rating']:<16} {r['confidence']:<10} {r['target_1w']:<14} {r['target_mid']:<14}")
         print(f"📑 Konsolide Tarama Bülteni Kaydedildi -> {digest_file}")
-        print("="*85 + "\n")
+        print("="*95 + "\n")
         return digest_file, committee_results
 
 if __name__ == "__main__":
