@@ -32,7 +32,7 @@ training:
   adam_beta1: 0.9
   adam_beta2: 0.95
   adam_weight_decay: 0.1
-  basemodel_epochs: 25
+  basemodel_epochs: 5
   batch_size: 2
   log_interval: 20
   num_workers: 0

@@ -17,6 +17,11 @@ import datetime
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='ignore')
+
 sys.path.append('../')
 from model import Kronos, KronosTokenizer, KronosPredictor
 from config_loader import CustomFinetuneConfig

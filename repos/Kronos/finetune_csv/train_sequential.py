@@ -7,6 +7,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.distributed as dist
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='ignore')
+
 sys.path.append('../')
 from model import Kronos, KronosTokenizer, KronosPredictor
 

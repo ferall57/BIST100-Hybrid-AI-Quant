@@ -87,9 +87,11 @@ def run_training(config_file=CONFIG_PATH, skip_tokenizer=False, skip_basemodel=F
     print(f"🧠 Hedef Model: NeoQuasar/Kronos-base (102.3M Parametre)")
     print(f"🛡️ Bellek Koruma: Batch Size = 2, Gradient Accumulation = 16 (Effective Batch = 32)")
     
-    # PYTHONPATH ayarla ki Kronos modülleri bulunsun
+    # PYTHONPATH ve UTF-8 ayarla
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{KRONOS_DIR};{FINETUNE_CSV_DIR};" + env.get("PYTHONPATH", "")
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     
     train_script = os.path.join(FINETUNE_CSV_DIR, "train_sequential.py")

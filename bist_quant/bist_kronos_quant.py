@@ -39,19 +39,27 @@ class BistKronosQuant:
             
         # Tokenizer'ı yükle
         tokenizer_path = "NeoQuasar/Kronos-Tokenizer-base"
-        finetuned_tok = os.path.join(MODELS_DIR, "tokenizer", "best_model")
-        if os.path.exists(finetuned_tok):
-            print(f"🌟 BIST özel eğitilmiş Tokenizer bulunuyor -> {finetuned_tok}")
-            tokenizer_path = finetuned_tok
+        for tok_cand in [
+            os.path.join(MODELS_DIR, "bist100_kronos_base", "tokenizer", "best_model"),
+            os.path.join(MODELS_DIR, "tokenizer", "best_model")
+        ]:
+            if os.path.exists(tok_cand):
+                print(f"🌟 BIST özel eğitilmiş Tokenizer bulundu -> {tok_cand}")
+                tokenizer_path = tok_cand
+                break
             
         self.tokenizer = KronosTokenizer.from_pretrained(tokenizer_path)
         
-        # Model (Predictor) Yükle (Kullanıcı talebiyle en üst model Kronos-base seçilir)
+        # Model (Predictor) Yükle
         model_path = "NeoQuasar/Kronos-base" if use_base_model else "NeoQuasar/Kronos-small"
-        finetuned_model = os.path.join(MODELS_DIR, "basemodel", "best_model")
-        if os.path.exists(finetuned_model):
-            print(f"🏆 BIST 100 üzerinde ustalasarak fine-tune edilmiş Kronos modeli bulunuyor -> {finetuned_model}")
-            model_path = finetuned_model
+        for model_cand in [
+            os.path.join(MODELS_DIR, "bist100_kronos_base", "basemodel", "best_model"),
+            os.path.join(MODELS_DIR, "basemodel", "best_model")
+        ]:
+            if os.path.exists(model_cand):
+                print(f"🏆 BIST 100 üzerinde ustalaşarak fine-tune edilmiş Kronos modeli yüklendi -> {model_cand}")
+                model_path = model_cand
+                break
             
         print(f"🧠 Kronos Model Yüklendi: {model_path}")
         self.model = Kronos.from_pretrained(model_path)
