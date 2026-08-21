@@ -11,6 +11,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
+from bist_quant.bist_viop import BistViopEngine
 
 try:
     from bist_quant.bist_kronos_quant import BistKronosQuant
@@ -106,11 +107,14 @@ class BistBacktester:
         initial_capital: float = 100000.0,
         allocation_pct: float = 100.0,
         enable_regime_filter: bool = True,
-        use_trailing_stop: bool = True
+        use_trailing_stop: bool = True,
+        use_viop: bool = False,
+        leverage: float = 1.5
     ):
         """
         Geçmiş N aylık veri üzerinde Walk-Forward simülasyonu çalıştırır.
-        use_trailing_stop=True: Kârı koşturur, hisse yükseldikçe stop seviyesini yukarı taşır.
+        use_viop=True: Çift yönlü (Long & Short) VİOP türev motorunu çalıştırır.
+        use_trailing_stop=True: Kârı koşturur, hisse yükseldikçe (veya düştükçe) stop seviyesini taşır.
         """
         if not ticker.endswith(".IS"):
             ticker += ".IS"
@@ -121,6 +125,8 @@ class BistBacktester:
         print(f"⏳ Test Periyodu  : Son {months} Ay (Adım: Her {step_days} İşlem Gününde Bir)")
         print(f"🔮 Tahmin Ufku    : {horizon_days} İşlem Günü")
         print(f"🛡️ Risk Yönetimi  : {'İz Süren Stop (Trailing Stop - Kârı Koştur)' if use_trailing_stop else f'Sabit TP: %{take_profit_pct:.1f}'} | Rejim Filtresi: {'Aktif' if enable_regime_filter else 'Pasif'}")
+        if use_viop:
+            print(f"⚡ VİOP Modu      : Aktif (Çift Yönlü Long & Short | Kaldıraç: {leverage}x | Takasbank Nemalandırması: %45)")
         print(f"💰 Başlangıç Kasa : {initial_capital:,.2f} TRY")
         print("="*85 + "\n")
 
@@ -148,6 +154,7 @@ class BistBacktester:
 
         trades = []
         current_capital = initial_capital
+        daily_interest_rate = (1.0 + 0.45) ** (1.0 / 365.0) - 1.0
 
         # 2. Walk-Forward Döngüsü (Pencere Kaydırma)
         current_idx = test_start_idx
@@ -169,29 +176,31 @@ class BistBacktester:
             # 3. Model Tahmini Üret
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
-            # İşlem Kararı (Sniper & Rejim Disiplini):
-            # Rejim ayı piyasasıysa (Düşüş Trendi) kesinlikle işlem açma ve %100 nakitte kal!
+            # İşlem Kararı (Sniper & VİOP Çift Yönlü Karar):
             min_thresh = 0.8 if self.quant_engine is not None else 1.2
-            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter)
+            should_enter_long = expected_return > min_thresh and (is_bull or not enable_regime_filter)
+            should_enter_short = use_viop and (expected_return < -min_thresh or not is_bull)
 
-            if should_enter:
+            if should_enter_long or should_enter_short:
+                direction = "LONG" if should_enter_long else "SHORT"
+                eff_leverage = leverage if use_viop else 1.0
+                
                 trade_allocated = current_capital * (allocation_pct / 100.0)
-                shares = trade_allocated / entry_price
                 cash_reserve = current_capital - trade_allocated
-
+                
                 # Pozisyon Yönetimi (Trailing Stop ile Trend Sürme)
                 max_hold_days = min(60, len(df) - current_idx - 1)
                 forward_window = df.iloc[current_idx + 1 : current_idx + 1 + max_hold_days].copy().reset_index(drop=True)
                 
-                initial_sl_price = entry_price * (1.0 - active_sl / 100.0)
-                current_stop_price = initial_sl_price
-                peak_price = entry_price
                 trail_distance_pct = max(4.5, min(8.0, active_sl * 1.1))
-
+                peak_price = entry_price
+                trough_price = entry_price
+                
                 exit_price = float(forward_window["close"].iloc[-1])
                 exit_date = forward_window["timestamps"].iloc[-1]
                 exit_reason = f"Maksimum Vade Sonu ({max_hold_days}G)"
                 duration = len(forward_window)
+                accumulated_interest = 0.0
 
                 # Gün gün pozisyon takibi
                 for day_i, (_, f_row) in enumerate(forward_window.iterrows(), 1):
@@ -200,28 +209,24 @@ class BistBacktester:
                     f_close = float(f_row["close"])
                     f_date = f_row["timestamps"]
 
-                    if use_trailing_stop:
-                        # 1. Zirveyi güncelle
+                    if use_viop:
+                        accumulated_interest += current_capital * daily_interest_rate
+
+                    if direction == "LONG":
                         if f_high > peak_price:
                             peak_price = f_high
-                            # Yeni iz süren stop seviyesi
-                            new_trailing_sl = peak_price * (1.0 - trail_distance_pct / 100.0)
-                            if new_trailing_sl > current_stop_price:
-                                current_stop_price = new_trailing_sl
+                        
+                        trailing_sl_price = peak_price * (1.0 - trail_distance_pct / 100.0)
+                        initial_sl_price = entry_price * (1.0 - active_sl / 100.0)
+                        effective_sl = max(initial_sl_price, trailing_sl_price) if use_trailing_stop else initial_sl_price
 
-                        # 2. Stop Tetiklenme Kontrolü
-                        if f_low <= current_stop_price:
-                            exit_price = current_stop_price
+                        if f_low <= effective_sl:
+                            exit_price = effective_sl
                             exit_date = f_date
-                            if current_stop_price >= entry_price:
-                                exit_reason = f"İz Süren Stop (Trailing +%{((current_stop_price - entry_price)/entry_price)*100:.1f})"
-                            else:
-                                exit_reason = f"Stop-Loss (%{active_sl:.1f})"
+                            exit_reason = f"İz Süren Stop (Trailing +%{((exit_price - entry_price)/entry_price)*100:.1f})" if exit_price >= entry_price else f"Stop-Loss (%{active_sl:.1f})"
                             duration = day_i
                             break
-                        
-                        # 3. Eğer 15. güne gelindiyse ve hisse hâlâ kârda/yükselişteyse tutmaya devam et!
-                        # Sadece hisse zarardaysa ve trend bozulduysa 15. günde çık
+
                         if day_i >= horizon_days and f_close < entry_price:
                             exit_price = f_close
                             exit_date = f_date
@@ -229,39 +234,45 @@ class BistBacktester:
                             duration = day_i
                             break
 
-                    else:
-                        # Klasik Sabit TP / SL Modu
-                        if f_low <= initial_sl_price:
-                            exit_price = initial_sl_price
+                    elif direction == "SHORT":
+                        if f_low < trough_price:
+                            trough_price = f_low
+
+                        # Inverted Trailing Stop: Dip fiyattan yukarı sıçrarsa kârı al
+                        inverted_trailing_sl = trough_price * (1.0 + trail_distance_pct / 100.0)
+                        short_initial_sl = entry_price * (1.0 + active_sl / 100.0)
+                        effective_short_sl = min(short_initial_sl, inverted_trailing_sl) if use_trailing_stop else short_initial_sl
+
+                        if f_high >= effective_short_sl:
+                            exit_price = effective_short_sl
                             exit_date = f_date
-                            exit_reason = f"Stop-Loss (%{active_sl:.1f})"
+                            exit_reason = f"Ters İz Süren Stop (Short +%{((entry_price - exit_price)/entry_price)*100:.1f})" if exit_price <= entry_price else f"Short Stop-Loss (%{active_sl:.1f})"
                             duration = day_i
                             break
 
-                        tp_price = entry_price * (1.0 + active_tp / 100.0)
-                        if f_high >= tp_price:
-                            exit_price = tp_price
-                            exit_date = f_date
-                            exit_reason = f"Take-Profit (%{active_tp:.1f})"
-                            duration = day_i
-                            break
-
-                        if day_i >= horizon_days:
+                        if day_i >= horizon_days and f_close > entry_price:
                             exit_price = f_close
                             exit_date = f_date
-                            exit_reason = f"Vade Sonu ({horizon_days}G)"
+                            exit_reason = f"Short Vade Sonu ({day_i}G)"
                             duration = day_i
                             break
 
-                trade_return_pct = ((exit_price - entry_price) / entry_price) * 100.0
-                realized_pnl = shares * (exit_price - entry_price)
-                current_capital = cash_reserve + (shares * exit_price)
+                # Getiri Hesabı
+                if direction == "LONG":
+                    price_change_pct = ((exit_price - entry_price) / entry_price) * 100.0
+                else:  # SHORT
+                    price_change_pct = ((entry_price - exit_price) / entry_price) * 100.0
+
+                trade_return_pct = price_change_pct * eff_leverage
+                realized_pnl = trade_allocated * (trade_return_pct / 100.0) + accumulated_interest
+                current_capital = max(1000.0, current_capital + realized_pnl)
 
                 trades.append({
                     "entry_date": entry_date.strftime("%Y-%m-%d"),
                     "entry_price": entry_price,
                     "exit_date": pd.to_datetime(exit_date).strftime("%Y-%m-%d"),
                     "exit_price": exit_price,
+                    "direction": direction,
                     "return_pct": trade_return_pct,
                     "pnl": realized_pnl,
                     "capital": current_capital,
@@ -274,10 +285,12 @@ class BistBacktester:
                     "win": trade_return_pct > 0
                 })
 
-                # Kârlı trend devam ediyorsa hızlı yeniden giriş fırsatı için küçük adımla ilerle
+                # Kârlı trend devam ediyorsa küçük adımla ilerle
                 step = max(1, duration)
             else:
                 # Ayı piyasası veya Nötr sinyal: Nakitte bekle
+                if use_viop:
+                    current_capital += current_capital * daily_interest_rate * step_days
                 step = step_days
 
             current_idx += step
@@ -501,7 +514,8 @@ class BistBacktester:
         trade_rows = ""
         for idx, t in enumerate(trades, 1):
             badge = "🟢 KÂR" if t["win"] else "🔴 ZARAR"
-            trade_rows += f"| #{idx} | {t['entry_date']} | {t['entry_price']:.2f} TRY | {t['exit_date']} | {t['exit_price']:.2f} TRY | **%{t['return_pct']:+.2f}** | {t['pnl']:+,.2f} TRY | {t['capital']:,.2f} TRY | {t['duration_days']}G | {badge} ({t['reason']}) |\n"
+            direction_badge = "🟢 LONG" if t.get("direction", "LONG") == "LONG" else "🔻 SHORT"
+            trade_rows += f"| #{idx} | {direction_badge} | {t['entry_date']} | {t['entry_price']:.2f} TRY | {t['exit_date']} | {t['exit_price']:.2f} TRY | **%{t['return_pct']:+.2f}** | {t['pnl']:+,.2f} TRY | {t['capital']:,.2f} TRY | {t['duration_days']}G | {badge} ({t['reason']}) |\n"
 
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         report_file = os.path.join(REPORTS_DIR, f"{ticker.replace('.', '_')}_backtest_report.md")
@@ -535,9 +549,9 @@ class BistBacktester:
 
 ## 📋 3. İŞLEM GÜNLÜĞÜ (TRADE LOG)
 
-| İşlem | Giriş Tarihi | Giriş Fiyatı | Çıkış Tarihi | Çıkış Fiyatı | Getiri (%) | Net Kâr/Zarar | Bakiye | Süre | Sonuç / Kapanış Nedeni |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-{trade_rows if trade_rows else "| - | İşlem gerçekleşmedi | - | - | - | - | - | - | - | - |\n"}
+| İşlem | Yön | Giriş Tarihi | Giriş Fiyatı | Çıkış Tarihi | Çıkış Fiyatı | Getiri (%) | Net Kâr/Zarar | Bakiye | Süre | Sonuç / Kapanış Nedeni |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+{trade_rows if trade_rows else "| - | - | İşlem gerçekleşmedi | - | - | - | - | - | - | - | - |\n"}
 
 ---
 *(Bu rapor KRONOS Walk-Forward Backtesting Motoru tarafından üretilmiştir. Geçmiş performans gelecekteki sonuçların garantisi değildir.)*

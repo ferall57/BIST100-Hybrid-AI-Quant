@@ -92,6 +92,11 @@ graph TD
   $$R_{fused} = (1 - w_{news}) \cdot R_{tech} + w_{news} \cdot \left( S_{news} \times I_{impact} \times \sigma_{volatility} \right)$$
 * **Dinamik Eşik & Kârı Koşturma Stop Mesafesi:** Güçlü katalizörlü hisselerde teknik giriş barajını düşürür ($\text{min\_thresh} \downarrow$) ve erken silkelenmeyi önlemek için İz Süren Stop mesafesini genişletir ($4\% \rightarrow 7.5\%$).
 
+### 🔹 Çekirdek 7: VİOP Çift Yönlü (Long/Short) Türev & Nemalandırma Motoru
+* **Çift Yönlü Kazanç (Bi-directional Alpha):** Yükseliş trendinde Kaldıraçlı Long, düşüş trendinde **Kaldıraçlı Short (Açığa Satış)** açarak ayı piyasalarından devasa kârlar üretir.
+* **Ters İz Süren Stop (Inverted Trailing Stop):** Short pozisyonda fiyat düştükçe kâr seviyesini kilitler, dipten ani tepki geldiğinde kârı cebe atar.
+* **Takasbank Nemalandırma Faizi:** Pozisyondayken veya nakitteyken portföye her gün gecelik Takasbank faizi (yıllık %45) tahakkuk ettirir.
+
 ---
 
 ## 🏆 Gerçekleşen Backtest Doğrulama Sonuçları (Case Studies)
@@ -100,13 +105,14 @@ Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Looka
 
 | Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha ($\alpha$) | Risk & Performans Metrikleri |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| **FROTO.IS** (VİOP Long/Short) | **Son 12 Ay** | **-%25.28** 🔴 | **%+101.64** 🟢 | **🚀 +%126.91 ALPHA** | **Düşüşte 2x Kâr** \| PF: 2.07x \| Sortino: 4.44 |
 | **ISCTR.IS** (Fine-Tuned AI) | **Son 6 Ay** | **-%23.19** 🔴 | **%+0.83** 🟢 | **🚀 +%24.02 ALPHA** | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
-| **FROTO.IS** (Fine-Tuned AI) | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢 | **🚀 +%25.28 ALPHA** | **Tam Sermaye Koruması** \| MDD: -%0.00 (%100 Nakit) |
+| **FROTO.IS** (Spot Defansif) | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢 | **🚀 +%25.28 ALPHA** | **Tam Koruma** \| MDD: -%0.00 (%100 Nakit) |
 | **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
 
-> 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Trend Takibi):**
-> 1. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş 102.3M modelimiz ayı piyasasının tuzak düşüşlerinden kaçınmış, doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
-> 2. **FROTO Tam Sermaye Koruması:** FROTO 1 yıl boyunca **%25.28 değer kaybederken**, model rejim filtresi ve yüksek seçicilikle (Sniper Modu) düşen bıçağı tutmayıp %100 nakitte beklemiş, kasadaki 100.000 TL'nin 75.000 TL'ye erimesini önleyerek **+%25.28 Alpha** sağlamıştır.
+> 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Çift Yönlü Kazanç):**
+> 1. **FROTO VİOP Short Zaferi:** Hisse 1 yıl boyunca **-%25.28 çökerken**, VİOP Çift Yönlü motorumuz düşüş trendinde **Kısa Pozisyon (Short / Açığa Satış)** açarak ve Takasbank nemalandırmasıyla **100.000 TL'lik kasayı 201.635 TL'ye (+%101.64 Net Kâr)** çıkarmış ve hisseye **+%126.91 ALPHA** farkı atmıştır!
+> 2. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş modelimiz doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
 > 3. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
 
 
@@ -145,16 +151,22 @@ python main.py --sentiment ASELS.IS
 python main.py --sentiment FROTO.IS
 ```
 
-### 3. Walk-Forward Backtest & Performans Doğrulama (Son 6 veya 12 Ay)
+### 3. VİOP Çift Yönlü (Long/Short) Sinyal Taraması & Backtest
 ```bash
-# 6 Aylık Backtest (Stop-Loss %3.5, Take-Profit %8.0)
-python main.py --backtest ISCTR.IS --months 6
+# BIST 30 için günün Canlı Long ve Short kontrat fırsatlarını listele
+python main.py --viop-signals --top 10
 
-# 12 Aylık Backtest (FROTO.IS)
-python main.py --backtest FROTO.IS --months 12 --sl 4.0 --tp 10.0
+# 12 Aylık Çift Yönlü VİOP Backtesti (Kaldıraç: 1.5x, Nemalandırma %45)
+python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest --viop
 ```
 
-### 4. BIST 30 / 100 Otomatik Tarama (Screener)
+### 4. Walk-Forward Spot Backtest & Performans Doğrulama
+```bash
+# 6 Aylık Spot Backtest (Stop-Loss %3.5, Take-Profit %8.0)
+python main.py --backtest ISCTR.IS --months 6
+```
+
+### 5. BIST 30 / 100 Otomatik Tarama (Screener)
 ```bash
 # BIST 30 En İyi 5 Fırsat
 python main.py --scan bist30 --top 5 --model gemini-2.5-flash
@@ -163,7 +175,7 @@ python main.py --scan bist30 --top 5 --model gemini-2.5-flash
 python main.py --scan bist100 --top 10 --model gemini-2.5-flash
 ```
 
-### 5. BIST Veri Setlerini İndirme & Kronos Eğitimi
+### 6. BIST Veri Setlerini İndirme & Kronos Eğitimi
 ```bash
 # BIST 100 verilerini indir
 python main.py --download-all --download-mode bist100

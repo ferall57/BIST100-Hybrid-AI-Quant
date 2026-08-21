@@ -25,6 +25,7 @@ from hybrid_agents.bist_committee import BistHybridCommittee
 from bist_quant.bist_scanner import BistScanner
 from bist_quant.bist_backtester import BistBacktester
 from bist_quant.bist_sentiment import BistSentimentEngine
+from bist_quant.bist_viop import BistViopEngine
 
 def banner():
     print("""
@@ -37,6 +38,7 @@ def banner():
  [*] Cekirdek 4 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
  [*] Cekirdek 5 : Walk-Forward Backtesting & Finansal Performans Doğrulama Motoru
  [*] Cekirdek 6 : Cok Modlu (Multi-Modal) NLP Haber & KAP Duyarlilik Fuzyon Motoru
+ [*] Cekirdek 7 : VIOP Cift Yonlu (Long/Short) Turev & Nemalandirma Motoru
  [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
 ================================================================================
 """)
@@ -53,7 +55,7 @@ def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6,
     generate_bist_config(epochs_tokenizer=epochs_tok, epochs_predictor=epochs_pred, batch_size=batch_size, accum_steps=accum, lr_predictor=lr, train_tokenizer=not skip_tok)
     run_training(skip_tokenizer=skip_tok)
 
-def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-pro", temp: float = 0.3):
+def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.3):
     if not ticker:
         print("[HATA] Lutfen analiz edilecek BIST sembolu girin. Orn: '--analyze THYAO.IS'")
         return
@@ -74,14 +76,14 @@ def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-pro", t
         if "api anahtar" in str(e).lower() or "not found" in str(e).lower():
             print("[BILGI] Lutfen .env dosyanizdaki GOOGLE_API_KEY_1, _2, _3 degerlerini kontrol ettiginizden emin olun!")
 
-def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-2.5-pro", temp: float = 0.2):
+def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.2):
     try:
         scanner = BistScanner(gemini_model=model, temperature=temp)
         scanner.scan_and_report(mode=mode, top_n=top_n, forecast_days=days)
     except Exception as e:
         print(f"\n[TARAMA HATASI] Tarama sirasinda problem olustu: {e}")
 
-def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False):
+def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False, use_viop: bool = False, leverage: float = 1.5):
     if not ticker:
         print("[HATA] Lutfen backtest edilecek BIST sembolu girin. Orn: '--backtest ISCTR.IS'")
         return
@@ -91,10 +93,12 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
             ticker=ticker,
             months=months,
             stop_loss_pct=sl,
-            take_profit_pct=tp
+            take_profit_pct=tp,
+            use_viop=use_viop,
+            leverage=leverage
         )
         print("\n" + "="*85)
-        print(f"🏆 BACKTEST TAMAMLANDI: {ticker} (Son {months} Ay)")
+        print(f"🏆 BACKTEST TAMAMLANDI: {ticker} (Son {months} Ay{' - VİOP Long/Short' if use_viop else ''})")
         print("="*85)
         print(f"💰 Strateji Toplam Getirisi : %{metrics['total_return_pct']:+.2f} (Al-Tut: %{metrics['bnh_return_pct']:+.2f})")
         print(f"🚀 Alpha (Endeks Üstü Fark) : %{metrics['alpha']:+.2f}")
@@ -107,6 +111,58 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
         print(f"📈 Kasa Sermaye Eğrisi (PNG) : {chart_file}\n")
     except Exception as e:
         print(f"\n[BACKTEST HATASI] Simülasyon sırasında problem oluştu: {e}")
+
+def handle_viop_signals(top_n: int = 10):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
+        import pandas as pd
+        
+        tickers = get_tickers(mode="bist30")
+        viop_engine = BistViopEngine()
+        
+        print("\n" + "="*85)
+        print("⚡ BIST 30 CANLI VİOP (LONG / SHORT) SİNYAL VE POZİSYON TARAMASI")
+        print("="*85)
+        print(f"📊 Taranan Evren: BIST 30 ({len(tickers)} Hisse)")
+        print("⏳ Sinyal Vadesi: 1-15 İşlem Günü | Takasbank Nemalandırma: %45")
+        print("-" * 85)
+        
+        candidates = []
+        for t in tickers[:top_n]:
+            try:
+                download_ticker_data(t, period="6mo", interval="1d", save_dir=RAW_DATA_DIR)
+                csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
+                if not os.path.exists(csv_file):
+                    continue
+                df = pd.read_csv(csv_file)
+                if len(df) < 50:
+                    continue
+                close = float(df["close"].iloc[-1])
+                ema20 = float(df["close"].ewm(span=20).mean().iloc[-1])
+                sma50 = float(df["close"].rolling(50).mean().iloc[-1])
+                
+                trend = "BOĞA" if (ema20 > sma50 and close > sma50) else ("AYI" if (ema20 < sma50 and close < sma50) else "NÖTR")
+                momentum = ((close - float(df["close"].iloc[-10])) / float(df["close"].iloc[-10])) * 100.0
+                
+                candidates.append({
+                    "ticker": t,
+                    "close": close,
+                    "expected_return": momentum,
+                    "trend": trend
+                })
+            except Exception:
+                continue
+                
+        signals = viop_engine.generate_viop_signals(candidates)
+        
+        print(f"{'Sıra':<5} {'VİOP Kontrat':<14} {'Spot Fiyat':<12} {'Rejim':<10} {'10G Trend %':<14} {'VİOP Sinyali':<28} {'Güven':<8}")
+        print("-" * 85)
+        for idx, s in enumerate(signals, 1):
+            print(f"{idx:<5} {s['contract']:<14} {s['close']:<12.2f} {s['trend']:<10} {s['expected_return']:<+14.2f} {s['signal']:<28} {s['confidence']:<8}")
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[VİOP SİNYAL HATASI] Tarama sırasında problem oluştu: {e}")
 
 def handle_sentiment(ticker: str, model: str = "gemini-2.5-flash"):
     if not ticker:
@@ -159,8 +215,11 @@ def main():
     parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ASELS.IS) Canli KAP ve Haber NLP Duyarlilik ve Fuzyon analizini calistir")
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Secilen hissede gecmis N aylik Walk-Forward Backtest simülasyonu calistir")
+    parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratlari icin Canli VIOP (Long / Short) sinyal ve pozisyon taramasi yap")
     
     # Opsiyonel parametreler
+    parser.add_argument("--viop", action="store_true", help="Backtest icinde Cift Yonlu (Long & Short) VIOP turev motorunu calistir")
+    parser.add_argument("--leverage", type=float, default=1.5, help="VIOP kaldirac katsayisi (Varsayilan: 1.5x)")
     parser.add_argument("--top", type=int, default=5, help="Tarama modunda derin analize girecek hisse sayisi (Varsayilan: 5)")
     parser.add_argument("--days", type=int, default=15, help="Kronos-base quant projeksiyon gun sayisi (Varsayilan: 15)")
     parser.add_argument("--months", type=int, default=6, help="Backtest test periyodu (Ay, Varsayilan: 6)")
@@ -195,11 +254,14 @@ def main():
     if args.sentiment:
         handle_sentiment(args.sentiment, model=args.model)
 
+    if args.viop_signals:
+        handle_viop_signals(top_n=args.top)
+
     if args.scan:
         handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)
 
     if args.backtest:
-        handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest)
+        handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage)
 
 if __name__ == "__main__":
     main()
