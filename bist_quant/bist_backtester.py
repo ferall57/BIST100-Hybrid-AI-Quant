@@ -134,6 +134,9 @@ class BistBacktester:
         df["timestamps"] = pd.to_datetime(df["timestamps"])
         df = df.sort_values("timestamps").reset_index(drop=True)
 
+        if "amount" not in df.columns:
+            df["amount"] = df["close"] * df["volume"]
+
         # Test aralığını belirle (Yaklaşık 1 ay = 21 işlem günü)
         total_test_days = int(months * 21)
         if len(df) < total_test_days + 100:
@@ -167,8 +170,9 @@ class BistBacktester:
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
             # İşlem Kararı:
-            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%6 beklenen getiri) yoksa NAKİTTE KAL!
-            should_enter = expected_return > 1.5 and (is_bull or not enable_regime_filter or expected_return > 6.0)
+            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%5 beklenen getiri) yoksa NAKİTTE KAL!
+            min_thresh = 0.8 if self.quant_engine is not None else 1.2
+            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter or expected_return > 4.5)
 
             if should_enter:
                 trade_allocated = current_capital * (allocation_pct / 100.0)
