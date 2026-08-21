@@ -105,10 +105,12 @@ class BistBacktester:
         take_profit_pct: float = 8.0,
         initial_capital: float = 100000.0,
         allocation_pct: float = 100.0,
-        enable_regime_filter: bool = True
+        enable_regime_filter: bool = True,
+        use_trailing_stop: bool = True
     ):
         """
         Geçmiş N aylık veri üzerinde Walk-Forward simülasyonu çalıştırır.
+        use_trailing_stop=True: Kârı koşturur, hisse yükseldikçe stop seviyesini yukarı taşır.
         """
         if not ticker.endswith(".IS"):
             ticker += ".IS"
@@ -118,7 +120,7 @@ class BistBacktester:
         print(f"🎯 Hedef Hisse    : {ticker}")
         print(f"⏳ Test Periyodu  : Son {months} Ay (Adım: Her {step_days} İşlem Gününde Bir)")
         print(f"🔮 Tahmin Ufku    : {horizon_days} İşlem Günü")
-        print(f"🛡️ Risk Yönetimi  : Dinamik ATR Stop-Loss | Rejim Filtresi: {'Aktif' if enable_regime_filter else 'Pasif'}")
+        print(f"🛡️ Risk Yönetimi  : {'İz Süren Stop (Trailing Stop - Kârı Koştur)' if use_trailing_stop else f'Sabit TP: %{take_profit_pct:.1f}'} | Rejim Filtresi: {'Aktif' if enable_regime_filter else 'Pasif'}")
         print(f"💰 Başlangıç Kasa : {initial_capital:,.2f} TRY")
         print("="*85 + "\n")
 
@@ -155,11 +157,6 @@ class BistBacktester:
             entry_date = entry_row["timestamps"]
             entry_price = float(entry_row["close"])
 
-            # Gelecek ufuk penceresi
-            forward_window = df.iloc[current_idx + 1 : current_idx + 1 + horizon_days].copy().reset_index(drop=True)
-            if len(forward_window) == 0:
-                break
-
             # 1. Rejim Filtresi Kontrolü
             is_bull, regime_str = self._check_market_regime(hist_df)
             
@@ -170,7 +167,7 @@ class BistBacktester:
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
             # İşlem Kararı:
-            # Eğer rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%6 beklenen getiri) yoksa NAKİTTE KAL!
+            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%6 beklenen getiri) yoksa NAKİTTE KAL!
             should_enter = expected_return > 1.5 and (is_bull or not enable_regime_filter or expected_return > 6.0)
 
             if should_enter:
@@ -178,34 +175,79 @@ class BistBacktester:
                 shares = trade_allocated / entry_price
                 cash_reserve = current_capital - trade_allocated
 
+                # Pozisyon Yönetimi (Trailing Stop ile Trend Sürme)
+                max_hold_days = min(60, len(df) - current_idx - 1)
+                forward_window = df.iloc[current_idx + 1 : current_idx + 1 + max_hold_days].copy().reset_index(drop=True)
+                
+                initial_sl_price = entry_price * (1.0 - active_sl / 100.0)
+                current_stop_price = initial_sl_price
+                peak_price = entry_price
+                trail_distance_pct = max(4.5, min(8.0, active_sl * 1.1))
+
                 exit_price = float(forward_window["close"].iloc[-1])
                 exit_date = forward_window["timestamps"].iloc[-1]
-                exit_reason = f"Vade Sonu ({horizon_days}G)"
+                exit_reason = f"Maksimum Vade Sonu ({max_hold_days}G)"
                 duration = len(forward_window)
 
-                # Gün gün High / Low kontrolü (Dinamik Stop-Loss veya Take-Profit tetiklendi mi?)
+                # Gün gün pozisyon takibi
                 for day_i, (_, f_row) in enumerate(forward_window.iterrows(), 1):
                     f_high = float(f_row["high"])
                     f_low = float(f_row["low"])
+                    f_close = float(f_row["close"])
                     f_date = f_row["timestamps"]
 
-                    # Dinamik Stop-Loss Kontrolü
-                    sl_price = entry_price * (1.0 - active_sl / 100.0)
-                    if f_low <= sl_price:
-                        exit_price = sl_price
-                        exit_date = f_date
-                        exit_reason = f"Stop-Loss (%{active_sl:.1f})"
-                        duration = day_i
-                        break
+                    if use_trailing_stop:
+                        # 1. Zirveyi güncelle
+                        if f_high > peak_price:
+                            peak_price = f_high
+                            # Yeni iz süren stop seviyesi
+                            new_trailing_sl = peak_price * (1.0 - trail_distance_pct / 100.0)
+                            if new_trailing_sl > current_stop_price:
+                                current_stop_price = new_trailing_sl
 
-                    # Dinamik Take-Profit Kontrolü
-                    tp_price = entry_price * (1.0 + active_tp / 100.0)
-                    if f_high >= tp_price:
-                        exit_price = tp_price
-                        exit_date = f_date
-                        exit_reason = f"Take-Profit (%{active_tp:.1f})"
-                        duration = day_i
-                        break
+                        # 2. Stop Tetiklenme Kontrolü
+                        if f_low <= current_stop_price:
+                            exit_price = current_stop_price
+                            exit_date = f_date
+                            if current_stop_price >= entry_price:
+                                exit_reason = f"İz Süren Stop (Trailing +%{((current_stop_price - entry_price)/entry_price)*100:.1f})"
+                            else:
+                                exit_reason = f"Stop-Loss (%{active_sl:.1f})"
+                            duration = day_i
+                            break
+                        
+                        # 3. Eğer 15. güne gelindiyse ve hisse hâlâ kârda/yükselişteyse tutmaya devam et!
+                        # Sadece hisse zarardaysa ve trend bozulduysa 15. günde çık
+                        if day_i >= horizon_days and f_close < entry_price:
+                            exit_price = f_close
+                            exit_date = f_date
+                            exit_reason = f"Vade Sonu Konsolidasyon ({day_i}G)"
+                            duration = day_i
+                            break
+
+                    else:
+                        # Klasik Sabit TP / SL Modu
+                        if f_low <= initial_sl_price:
+                            exit_price = initial_sl_price
+                            exit_date = f_date
+                            exit_reason = f"Stop-Loss (%{active_sl:.1f})"
+                            duration = day_i
+                            break
+
+                        tp_price = entry_price * (1.0 + active_tp / 100.0)
+                        if f_high >= tp_price:
+                            exit_price = tp_price
+                            exit_date = f_date
+                            exit_reason = f"Take-Profit (%{active_tp:.1f})"
+                            duration = day_i
+                            break
+
+                        if day_i >= horizon_days:
+                            exit_price = f_close
+                            exit_date = f_date
+                            exit_reason = f"Vade Sonu ({horizon_days}G)"
+                            duration = day_i
+                            break
 
                 trade_return_pct = ((exit_price - entry_price) / entry_price) * 100.0
                 realized_pnl = shares * (exit_price - entry_price)
@@ -228,7 +270,8 @@ class BistBacktester:
                     "win": trade_return_pct > 0
                 })
 
-                step = max(1, min(duration, step_days))
+                # Kârlı trend devam ediyorsa hızlı yeniden giriş fırsatı için küçük adımla ilerle
+                step = max(1, duration)
             else:
                 # Ayı piyasası veya Nötr sinyal: Nakitte bekle
                 step = step_days
