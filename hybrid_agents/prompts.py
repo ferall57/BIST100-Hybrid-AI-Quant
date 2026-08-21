@@ -118,6 +118,13 @@ Sen bu masadan çıkan tartışmayı tarafsızca değerlendiren nihai hakimsin. 
 * **Parametrik VaR (%95 Risk Limiti):** 1 Haftalık: % [1H VaR] | Orta Vadeli: % [Orta Vade VaR]
 * **Karar Etki Ağırlıkları (XAI):** [Örn: %35 Bilanço İskontosu, %30 Quant & Hacim Örüntüsü, %20 Risk/Ödül Oranı, %15 KAP Katalizörü]
 
+## 5. ⚡ VİOP (Türev) & Hedge Stratejisi
+* **İlgili VİOP Kontratı:** F_{ticker} (1 Kontrat = 100 Pay)
+* **Türev Pozisyon Önerisi:** [Kaldıraçlı LONG (Alış) / Kaldıraçlı SHORT (Açığa Satış) / NÖTR - Takasbank Nemalandırmalı Nakit]
+* **Önerilen Kaldıraç:** 1.5x (Güvenli Teminat Yönetimi)
+* **İz Süren / Ters Stop Mesafesi:** % [Örn: %4.5 - %6.0]
+* **Spot Portföy Koruma (Hedge) Taktiği:** [Elinde hisse olanlar için riskten korunma veya vadeli piyasada çift yönlü kazanç taktiği]
+
 ---
 *(Bu rapor Antigravity tarafından BIST 100 Hibrit AI Komitesi ile oluşturulmuştur. Kesinlikle doğrudan bir finansal tavsiye (ytd) niteliği taşımaz.)*
 """

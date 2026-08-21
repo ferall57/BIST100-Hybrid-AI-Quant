@@ -27,7 +27,7 @@ class GeminiRotator:
     Herhangi bir anahtarda kota sorunu (HTTP 429, ResourceExhausted, Rate Limit) meydana gelirse
     hiçbir kesinti yaşatmadan bir sonraki yedek anahtara geçiş yapar (Failover & Rotation).
     """
-    def __init__(self, model_name: str = "gemini-2.5-flash", temperature: float = 0.2, max_retries: int = 5):
+    def __init__(self, model_name: str = "gemini-3.5-flash", temperature: float = 0.2, max_retries: int = 5):
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         env_file = os.path.join(root_dir, ".env")
         load_dotenv(dotenv_path=env_file, override=True)
@@ -44,7 +44,7 @@ class GeminiRotator:
             
         self.current_index = 0
         self.active_client = self._create_client(self.api_keys[self.current_index])
-        print(f"🔑 Gemini Akıllı Rotasyon Motoru Devrede! (Toplan {len(self.api_keys)} API Anahtarı Yüklendi | İlk Aktif: #{self.current_index+1})")
+        print(f"🔑 Gemini Akıllı Rotasyon Motoru Devrede! (Toplam {len(self.api_keys)} API Anahtarı Yüklendi | Model: {self.model_name} | İlk Aktif: #{self.current_index+1})")
 
     def _load_api_keys(self) -> List[str]:
         keys = []
@@ -63,15 +63,23 @@ class GeminiRotator:
     def _create_client(self, api_key: str):
         if not LANGCHAIN_AVAILABLE:
             return None
-        # Ortam değişkenini de güncelle
         os.environ["GOOGLE_API_KEY"] = api_key
-        # Gemini Modeli Yeniden Başlat
-        return ChatGoogleGenerativeAI(
-            model=self.model_name,
-            temperature=self.temperature,
-            google_api_key=api_key,
-            max_retries=1 # Kendi rotasyonumuz yönecek
-        )
+        # Gemini Modeli Başlat (Model adı uyumluluğu ile)
+        try:
+            return ChatGoogleGenerativeAI(
+                model=self.model_name,
+                temperature=self.temperature,
+                google_api_key=api_key,
+                max_retries=1
+            )
+        except Exception:
+            # Fallback
+            return ChatGoogleGenerativeAI(
+                model="gemini-2.5-flash",
+                temperature=self.temperature,
+                google_api_key=api_key,
+                max_retries=1
+            )
 
     def rotate_key(self, error_msg: str = ""):
         """Bir sonraki API anahtarına kesintisiz atlama gerçekleştirir."""

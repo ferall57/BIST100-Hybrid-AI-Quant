@@ -55,7 +55,7 @@ def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6,
     generate_bist_config(epochs_tokenizer=epochs_tok, epochs_predictor=epochs_pred, batch_size=batch_size, accum_steps=accum, lr_predictor=lr, train_tokenizer=not skip_tok)
     run_training(skip_tokenizer=skip_tok)
 
-def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.3):
+def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.3):
     if not ticker:
         print("[HATA] Lutfen analiz edilecek BIST sembolu girin. Orn: '--analyze THYAO.IS'")
         return
@@ -76,7 +76,7 @@ def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-flash",
         if "api anahtar" in str(e).lower() or "not found" in str(e).lower():
             print("[BILGI] Lutfen .env dosyanizdaki GOOGLE_API_KEY_1, _2, _3 degerlerini kontrol ettiginizden emin olun!")
 
-def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.2):
+def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.2):
     try:
         scanner = BistScanner(gemini_model=model, temperature=temp)
         scanner.scan_and_report(mode=mode, top_n=top_n, forecast_days=days)
@@ -164,7 +164,7 @@ def handle_viop_signals(top_n: int = 10):
     except Exception as e:
         print(f"\n[VİOP SİNYAL HATASI] Tarama sırasında problem oluştu: {e}")
 
-def handle_sentiment(ticker: str, model: str = "gemini-2.5-flash"):
+def handle_sentiment(ticker: str, model: str = "gemini-3.5-flash"):
     if not ticker:
         print("[HATA] Lutfen duyarliligi analiz edilecek BIST sembolu girin. Orn: '--sentiment ASELS.IS'")
         return
@@ -226,7 +226,7 @@ def main():
     parser.add_argument("--sl", type=float, default=3.5, help="Backtest Stop-Loss yuzdesi (Varsayilan: 3.5)")
     parser.add_argument("--tp", type=float, default=8.0, help="Backtest Take-Profit yuzdesi (Varsayilan: 8.0)")
     parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest icinde derin Kronos modelini calistir")
-    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-2.5-flash)")
+    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-3.5-flash)")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayisi")
     parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor (base) epok sayisi")
     parser.add_argument("--batch-size", type=int, default=2, help="Fine-tuning: 4GB VRAM icin batch size (Varsayilan: 2)")

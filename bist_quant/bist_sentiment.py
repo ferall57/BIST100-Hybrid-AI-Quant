@@ -36,7 +36,7 @@ class BistSentimentEngine:
     Haber akışını sayısal sinyale dönüştürür ve teknik modellerle füzyon (birleşim) sağlar.
     """
 
-    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.2):
+    def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.2):
         self.llm = None
         if GEMINI_AVAILABLE:
             try:

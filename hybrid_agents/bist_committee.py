@@ -14,6 +14,7 @@ from hybrid_agents.prompts import (
 )
 from bist_quant.bist_econometrics import BistEconometrics
 from bist_quant.bist_sentiment import BistSentimentEngine
+from bist_quant.bist_viop import BistViopEngine
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -30,7 +31,7 @@ class BistHybridCommittee:
     Kronos-Base Quant tahmini ile TradingAgents felsefesindeki çoklu yapay zeka komitesini
     (Temel, Teknik, Boğa, Ayı ve Portföy Müdürü) buluşturan ana merkez sinir ağı.
     """
-    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.3):
+    def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.3):
         os.makedirs(REPORTS_DIR, exist_ok=True)
         print("🏛️ BIST Hibrit Yapay Zeka Komitesi Toplanıyor...")
         
@@ -38,6 +39,7 @@ class BistHybridCommittee:
         self.llm = GeminiRotator(model_name=gemini_model, temperature=temperature)
         self.econometric_engine = BistEconometrics()
         self.sentiment_engine = BistSentimentEngine(gemini_model=gemini_model, temperature=0.2)
+        self.viop_engine = BistViopEngine()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -271,14 +273,27 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 5. Dev Kapsamlı Dosyayı Derle ve Kaydet
+        # 5. VİOP Türev & Teminat Hesaplaması
+        contract_code = self.viop_engine.get_contract_code(ticker)
+        viop_pos = self.viop_engine.calculate_position_size(capital=100000.0, spot_price=current_price, leverage=1.5)
+        
+        # 6. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + Gemini Rotational Multi-Agent Debate
+**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + VİOP Türev Motoru + Gemini Rotational Multi-Agent Debate
 
 ---
 
 {executive_verdict}
+
+---
+
+## ⚡ VİOP (VADELİ İŞLEM VE OPSİYON PİYASASI) TÜREV & HEDGE MATRİSİ
+* **VİOP Kontrat Kodu:** `{contract_code}` (1 Kontrat = 100 Pay)
+* **1 Kontrat Büyüklüğü:** {viop_pos['contract_value']:,.2f} TRY | **Başlangıç Teminatı:** {viop_pos['required_margin']/max(1, viop_pos['contracts']):,.2f} TRY / Kontrat (~%22)
+* **100.000 TL Kasa İçin Pozisyon:** {viop_pos['contracts']} Kontrat ({viop_pos['contracts']*100} Pay) | **Toplam Notional Değer:** {viop_pos['notional_value']:,.2f} TRY (Efektif Kaldıraç: {viop_pos['effective_leverage']}x)
+* **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi gecelik yıllık ~%45 bileşik faiz getirisi üretir.
+* **Ters / İz Süren Stop:** Long pozisyonlar için zirveden %4.5 aşağı, Short pozisyonlar için dipten %4.5 yukarı tepkide kâr koruma kalkanı devrededir.
 
 ---
 
