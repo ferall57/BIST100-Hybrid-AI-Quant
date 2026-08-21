@@ -1,8 +1,14 @@
 import os
+import sys
 import time
 import logging
 from typing import List, Any, Optional
 from dotenv import load_dotenv
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='ignore')
 
 # LangChain Google GenAI desteği
 try:
@@ -21,7 +27,7 @@ class GeminiRotator:
     Herhangi bir anahtarda kota sorunu (HTTP 429, ResourceExhausted, Rate Limit) meydana gelirse
     hiçbir kesinti yaşatmadan bir sonraki yedek anahtara geçiş yapar (Failover & Rotation).
     """
-    def __init__(self, model_name: str = "gemini-2.5-pro", temperature: float = 0.2, max_retries: int = 5):
+    def __init__(self, model_name: str = "gemini-2.5-flash", temperature: float = 0.2, max_retries: int = 5):
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         env_file = os.path.join(root_dir, ".env")
         load_dotenv(dotenv_path=env_file, override=True)

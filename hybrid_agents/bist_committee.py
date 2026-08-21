@@ -13,6 +13,7 @@ from hybrid_agents.prompts import (
     BIST_PORTFOLIO_MANAGER_PROMPT
 )
 from bist_quant.bist_econometrics import BistEconometrics
+from bist_quant.bist_sentiment import BistSentimentEngine
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -29,13 +30,14 @@ class BistHybridCommittee:
     Kronos-Base Quant tahmini ile TradingAgents felsefesindeki çoklu yapay zeka komitesini
     (Temel, Teknik, Boğa, Ayı ve Portföy Müdürü) buluşturan ana merkez sinir ağı.
     """
-    def __init__(self, gemini_model: str = "gemini-2.5-pro", temperature: float = 0.3):
+    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.3):
         os.makedirs(REPORTS_DIR, exist_ok=True)
         print("🏛️ BIST Hibrit Yapay Zeka Komitesi Toplanıyor...")
         
         # 3'lü Gemini rotasyon motorunu başlat
         self.llm = GeminiRotator(model_name=gemini_model, temperature=temperature)
         self.econometric_engine = BistEconometrics()
+        self.sentiment_engine = BistSentimentEngine(gemini_model=gemini_model, temperature=0.2)
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -196,45 +198,21 @@ class BistHybridCommittee:
                     return res.content
             return str(res)
 
-        # 2. Aşama: Analistler (Temel & Teknik-Makro)
-        print(f"💼 [AŞAMA 2/4] Temel ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
+        # 2. Aşama: Analistler (Temel, NLP Sentiment & Teknik-Makro)
+        print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
         
-        # 2.1 Canlı İnternet Araması (KAP ve Güncel Haberler)
-        print(f"🌍 [CANLI BAĞLANTI] {ticker} için güncel RSS/XML beslemeleri okunuyor (Google News TR, KAP)...")
-        live_news = ""
-        try:
-            import urllib.request
-            import urllib.parse
-            import xml.etree.ElementTree as ET
-            
-            # Google News RSS (Türkiye) üzerinden özel hisse senedi araması
-            clean_ticker = ticker.replace(".IS", "")
-            # Şirketin uzun resmi adı yerine sadece borsa kodu (Örn: ISCTR) üzerinden geniş arama
-            query = f'{clean_ticker} KAP OR {clean_ticker} hisse OR {clean_ticker} haber'
-            safe_query = urllib.parse.quote(query)
-            url = f'https://news.google.com/rss/search?q={safe_query}&hl=tr&gl=TR&ceid=TR:tr'
-            
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-                
-            root = ET.fromstring(xml_data)
-            items = root.findall('./channel/item')
-            
-            # En güncel 25 haberi al (KAP bildirimleri dahil tüm kritik haberler)
-            for item in items[:25]:
-                title = item.find('title').text if item.find('title') is not None else ""
-                pubDate = item.find('pubDate').text if item.find('pubDate') is not None else ""
-                if title:
-                    # Rss içeriğini daha okunabilir yap
-                    title = title.replace("&#39;", "'").replace("&quot;", '"')
-                    live_news += f"- [{pubDate}] {title}\n"
-                    
-        except Exception as e:
-            print(f"⚠️ RSS Haber okuması başarısız: {e}")
-            
-        if not live_news.strip():
-            live_news = "Güncel piyasa/KAP haberi bulunamadı."
+        # 2.1 Canlı NLP KAP ve Haber Duyarlılık Analizi
+        print(f"🌍 [CANLI BAĞLANTI] {ticker} için Canlı KAP ve Finans Haberleri NLP ile skorlanıyor...")
+        sentiment_data = self.sentiment_engine.analyze_sentiment(ticker)
+        
+        live_news = f"""* **NLP Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} ({sentiment_data.get('sentiment_label', 'NÖTR')}) | Etki Şiddeti: %{sentiment_data.get('impact_intensity', 0.0)*100:.0f}
+* **Pozitif Katalizör:** {'EVET 🟢' if sentiment_data.get('catalyst_detected') else 'YOK ⚪'} | **Negatif Risk:** {'EVET 🔴' if sentiment_data.get('bearish_catalyst_detected') else 'YOK ⚪'}
+* **Haber Analiz Özeti:** {sentiment_data.get('summary', '')}
+"""
+        if sentiment_data.get("key_catalysts"):
+            live_news += "\n**Öne Çıkan KAP ve Haber Başlıkları:**\n"
+            for cat in sentiment_data["key_catalysts"]:
+                live_news += f"- {cat}\n"
 
         current_date_str = datetime.now().strftime("%d %B %Y")
         
@@ -301,6 +279,14 @@ class BistHybridCommittee:
 ---
 
 {executive_verdict}
+
+---
+
+## 📰 ÇOK MODLU (MULTI-MODAL) NLP HABER VE KAP DUYARLILIK ANALİZİ
+* **Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} [-1.0 ile +1.0] ({sentiment_data.get('sentiment_label', 'NÖTR')})
+* **Etki Şiddeti (Impact):** %{sentiment_data.get('impact_intensity', 0.0)*100:.0f} | **İncelenen Haber:** {sentiment_data.get('news_count', 0)} Adet
+* **Katalizör Durumu:** {'🚀 Pozitif Katalizör Tespit Edildi 🟢' if sentiment_data.get('catalyst_detected') else ('🚨 Negatif Kriz Katalizörü 🔴' if sentiment_data.get('bearish_catalyst_detected') else '⚪ Nötr Haber Akışı')}
+* **Haber & KAP Özeti:** {sentiment_data.get('summary', '')}
 
 ---
 

@@ -23,7 +23,7 @@ class BistScanner:
     BIST 100 / BIST 30 hisse evrenini otomatik tarayan, 
     2 Aşamalı Hızlı Quant & Derin Komite Filtreleme Motoru (Screener).
     """
-    def __init__(self, gemini_model: str = "gemini-2.5-pro", temperature: float = 0.2):
+    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.2):
         os.makedirs(REPORTS_DIR, exist_ok=True)
         self.gemini_model = gemini_model
         self.temperature = temperature

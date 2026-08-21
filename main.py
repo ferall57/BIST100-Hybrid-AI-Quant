@@ -24,6 +24,7 @@ from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee
 from bist_quant.bist_scanner import BistScanner
 from bist_quant.bist_backtester import BistBacktester
+from bist_quant.bist_sentiment import BistSentimentEngine
 
 def banner():
     print("""
@@ -35,6 +36,7 @@ def banner():
  [*] Cekirdek 3 : TradingAgents Coklu Yapay Zeka Komitesi (Bull vs Bear Debate & XAI)
  [*] Cekirdek 4 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
  [*] Cekirdek 5 : Walk-Forward Backtesting & Finansal Performans Doğrulama Motoru
+ [*] Cekirdek 6 : Cok Modlu (Multi-Modal) NLP Haber & KAP Duyarlilik Fuzyon Motoru
  [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
 ================================================================================
 """)
@@ -106,6 +108,44 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
     except Exception as e:
         print(f"\n[BACKTEST HATASI] Simülasyon sırasında problem oluştu: {e}")
 
+def handle_sentiment(ticker: str, model: str = "gemini-2.5-flash"):
+    if not ticker:
+        print("[HATA] Lutfen duyarliligi analiz edilecek BIST sembolu girin. Orn: '--sentiment ASELS.IS'")
+        return
+    try:
+        engine = BistSentimentEngine(gemini_model=model)
+        print(f"\n🔍 [{ticker}] için Canlı KAP ve Finansal Haber NLP Duyarlılık Analizi Başlatılıyor...")
+        sentiment_result = engine.analyze_sentiment(ticker)
+        
+        print("\n" + "="*85)
+        print(f"📊 KAP & HABER DUYARLILIK KARNESİ: {sentiment_result['ticker']}")
+        print("="*85)
+        print(f"🎯 Duyarlılık Skoru (Sentiment) : {sentiment_result['sentiment_score']:+.2f} [-1.0 (Kriz) ile +1.0 (Katalizör)]")
+        print(f"💥 Etki Şiddeti (Impact)        : %{sentiment_result['impact_intensity']*100:.0f}")
+        print(f"🏷️ Duyarlılık Derecesi          : {sentiment_result['sentiment_label']}")
+        print(f"🚀 Pozitif Katalizör Tespiti     : {'EVET 🟢' if sentiment_result['catalyst_detected'] else 'YOK ⚪'}")
+        print(f"🚨 Negatif Kriz Katalizörü       : {'EVET 🔴' if sentiment_result['bearish_catalyst_detected'] else 'YOK ⚪'}")
+        print(f"📰 İncelenen Haber Sayısı        : {sentiment_result['news_count']} Adet")
+        print(f"📝 Yönetici Özeti                : {sentiment_result['summary']}")
+        
+        if sentiment_result.get("key_catalysts"):
+            print("\n📌 Öne Çıkan Başlıklar:")
+            for cat in sentiment_result["key_catalysts"]:
+                print(f"   {cat}")
+                
+        fusion = engine.fuse_with_technical_signal(tech_expected_return=1.0, sentiment_data=sentiment_result)
+        print("\n" + "-"*85)
+        print("🧠 HİBRİT TEKNİK + NLP FÜZYON MATRİSİ:")
+        print(f"  • Teknik Model Beklentisi : %{fusion['tech_expected_return']:+.2f}")
+        print(f"  • Haber İvmesi Katkısı    : %{fusion['news_momentum_return']:+.2f}")
+        print(f"  • 🏆 Nihai Füzyon Getirisi: %{fusion['fused_expected_return']:+.2f}")
+        print(f"  • Dinamik Alım Barajı     : %{fusion['modulated_threshold']:.2f}")
+        print(f"  • Kârı Koşturma Stop Mes. : %{fusion['modulated_trailing_pct']:.2f}")
+        print(f"  • Karar Önerisi           : {fusion['recommendation']}")
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[SENTIMENT HATASI] Analiz sırasında problem oluştu: {e}")
+
 def main():
     banner()
     parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi Ana Iletisim Arayuzu")
@@ -116,6 +156,7 @@ def main():
     parser.add_argument("--train-kronos", action="store_true", help="Kronos-base modelini BIST 100 uzerinde uygulanacak Derin Egitimi baslat")
     parser.add_argument("--train-predictor", action="store_true", help="Tokenizer egitimini atlayıp dogrudan Tahminci (Predictor) motorunun derin egitimine basla")
     parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Secilen BIST hissesinde (Orn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu uret")
+    parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ASELS.IS) Canli KAP ve Haber NLP Duyarlilik ve Fuzyon analizini calistir")
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Secilen hissede gecmis N aylik Walk-Forward Backtest simülasyonu calistir")
     
@@ -126,7 +167,7 @@ def main():
     parser.add_argument("--sl", type=float, default=3.5, help="Backtest Stop-Loss yuzdesi (Varsayilan: 3.5)")
     parser.add_argument("--tp", type=float, default=8.0, help="Backtest Take-Profit yuzdesi (Varsayilan: 8.0)")
     parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest icinde derin Kronos modelini calistir")
-    parser.add_argument("--model", type=str, default="gemini-2.5-pro", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-2.5-pro)")
+    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-2.5-flash)")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayisi")
     parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor (base) epok sayisi")
     parser.add_argument("--batch-size", type=int, default=2, help="Fine-tuning: 4GB VRAM icin batch size (Varsayilan: 2)")
@@ -150,6 +191,9 @@ def main():
         
     if args.analyze:
         handle_analyze(args.analyze, days=args.days, model=args.model)
+
+    if args.sentiment:
+        handle_sentiment(args.sentiment, model=args.model)
 
     if args.scan:
         handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)

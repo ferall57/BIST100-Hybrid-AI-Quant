@@ -85,6 +85,13 @@ graph TD
 * **Wall Street Performans Metrikleri:** Sharpe Oranı, Sortino Oranı, **Kazanma Oranı (Win Rate %)**, **Kâr Faktörü (Profit Factor)**, **Maksimum Çekilme (MDD %)** ve **Alpha ($\alpha$)**.
 * **Görsel Sermaye Eğrisi (Equity Curve):** 100.000 TL başlangıç sermayesinin Al-Tut (Buy & Hold) karşısındaki büyüme eğrisini çizer.
 
+### 🔹 Çekirdek 6: Çok Modlu (Multi-Modal) NLP Haber & KAP Duyarlılık Füzyon Motoru
+* **Finansal NLP Duyarlılık Skorlaması:** Canlı KAP bildirimleri ve Google News TR akışını analiz edip **$[-1.0, +1.0]$** arasında sayısal duyarlılık skoru ve **$[%0, \%100]$** etki şiddeti üretir.
+* **Pozitif / Negatif Katalizör Tespiti:** Ciro artırıcı dev ihaleler, bedelsiz sermaye, pay geri alımları veya ceza/fabrika durdurma krizlerini anında etiketler.
+* **Matematiksel Hibrit Füzyon Matrisi:**
+  $$R_{fused} = (1 - w_{news}) \cdot R_{tech} + w_{news} \cdot \left( S_{news} \times I_{impact} \times \sigma_{volatility} \right)$$
+* **Dinamik Eşik & Kârı Koşturma Stop Mesafesi:** Güçlü katalizörlü hisselerde teknik giriş barajını düşürür ($\text{min\_thresh} \downarrow$) ve erken silkelenmeyi önlemek için İz Süren Stop mesafesini genişletir ($4\% \rightarrow 7.5\%$).
+
 ---
 
 ## 🏆 Gerçekleşen Backtest Doğrulama Sonuçları (Case Studies)
@@ -128,10 +135,17 @@ GOOGLE_API_KEY_3=AIzaSy...
 
 ### 1. Tekil Hisse Derin Analizi (Çift Vade: 1H & 15G)
 ```bash
-python main.py --analyze ISCTR.IS --model gemini-3.5-flash
+python main.py --analyze ISCTR.IS --model gemini-2.5-flash
 ```
 
-### 2. Walk-Forward Backtest & Performans Doğrulama (Son 6 veya 12 Ay)
+### 2. Canlı KAP ve Haber NLP Duyarlılık & Füzyon Karnesi
+```bash
+# Tek komutla hissenin anlık KAP haber duyarlılığını ve katalizörlerini puanla
+python main.py --sentiment ASELS.IS
+python main.py --sentiment FROTO.IS
+```
+
+### 3. Walk-Forward Backtest & Performans Doğrulama (Son 6 veya 12 Ay)
 ```bash
 # 6 Aylık Backtest (Stop-Loss %3.5, Take-Profit %8.0)
 python main.py --backtest ISCTR.IS --months 6
@@ -140,16 +154,16 @@ python main.py --backtest ISCTR.IS --months 6
 python main.py --backtest FROTO.IS --months 12 --sl 4.0 --tp 10.0
 ```
 
-### 3. BIST 30 / 100 Otomatik Tarama (Screener)
+### 4. BIST 30 / 100 Otomatik Tarama (Screener)
 ```bash
 # BIST 30 En İyi 5 Fırsat
-python main.py --scan bist30 --top 5 --model gemini-3.5-flash
+python main.py --scan bist30 --top 5 --model gemini-2.5-flash
 
 # BIST 100 Geniş Evren Taraması
-python main.py --scan bist100 --top 10 --model gemini-3.5-flash
+python main.py --scan bist100 --top 10 --model gemini-2.5-flash
 ```
 
-### 4. BIST Veri Setlerini İndirme & Kronos Eğitimi
+### 5. BIST Veri Setlerini İndirme & Kronos Eğitimi
 ```bash
 # BIST 100 verilerini indir
 python main.py --download-all --download-mode bist100
