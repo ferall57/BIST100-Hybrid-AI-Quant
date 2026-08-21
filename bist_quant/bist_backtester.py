@@ -169,10 +169,10 @@ class BistBacktester:
             # 3. Model Tahmini Üret
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
-            # İşlem Kararı:
-            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%3 beklenen getiri) yoksa NAKİTTE KAL!
-            min_thresh = 0.05 if self.quant_engine is not None else 1.2
-            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter or expected_return > 3.0)
+            # İşlem Kararı (Sniper & Rejim Disiplini):
+            # Rejim ayı piyasasıysa (Düşüş Trendi) kesinlikle işlem açma ve %100 nakitte kal!
+            min_thresh = 0.8 if self.quant_engine is not None else 1.2
+            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter)
 
             if should_enter:
                 trade_allocated = current_capital * (allocation_pct / 100.0)

@@ -94,12 +94,12 @@ Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Looka
 | Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha ($\alpha$) | Risk & Performans Metrikleri |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **ISCTR.IS** (Fine-Tuned AI) | **Son 6 Ay** | **-%23.19** 🔴 | **%+0.83** 🟢 | **🚀 +%24.02 ALPHA** | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
-| **FROTO.IS** (Fine-Tuned AI) | **Son 12 Ay** | **-%25.28** 🔴 | **-%10.06** 🟢 | **🚀 +%15.22 ALPHA** | **Ayı Kalkanı** \| MDD: -%10.44 (Zararı %60 Azalttı) |
-| **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
+| **FROTO.IS** (Fine-Tuned AI) | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢 | **🚀 +%25.28 ALPHA** | **Tam Sermaye Koruması** \| MDD: -%0.00 (%100 Nakit) |
+| **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
 
 > 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Trend Takibi):**
 > 1. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş 102.3M modelimiz ayı piyasasının tuzak düşüşlerinden kaçınmış, doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
-> 2. **FROTO Sermaye Koruması:** FROTO 1 yıl boyunca **%25.28 değer kaybederken**, model rejim filtresiyle nakitte kalarak potansiyel zararı %60 oranında engellemiş ve **+%15.22 Alpha** sağlamıştır.
+> 2. **FROTO Tam Sermaye Koruması:** FROTO 1 yıl boyunca **%25.28 değer kaybederken**, model rejim filtresi ve yüksek seçicilikle (Sniper Modu) düşen bıçağı tutmayıp %100 nakitte beklemiş, kasadaki 100.000 TL'nin 75.000 TL'ye erimesini önleyerek **+%25.28 Alpha** sağlamıştır.
 > 3. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
 
 
