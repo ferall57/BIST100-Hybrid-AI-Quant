@@ -4,7 +4,7 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-102.3M_Params-ee4c2c.svg)
 ![Statsmodels](https://img.shields.io/badge/Econometrics-ADF_%26_Monte_Carlo-orange.svg)
 ![Backtesting](https://img.shields.io/badge/Backtest-Walk--Forward_Alpha-green.svg)
-![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-00a498.svg)
+![Gemini](https://img.shields.io/badge/Gemini-3.5_Flash-00a498.svg)
 ![Status](https://img.shields.io/badge/Status-Production_Ready-success.svg)
 
 Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber NLP Duyarlılık Füzyonu**, **VİOP Çift Yönlü (Long/Short) Türev Motoru** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
