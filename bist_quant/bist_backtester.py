@@ -39,6 +39,62 @@ class BistBacktester:
                 print(f"[UYARI] Kronos modeli yüklenemedi, momentum bazlı kuant tahminciye geçiliyor: {e}")
                 self.quant_engine = None
 
+    def _check_market_regime(self, hist_df: pd.DataFrame) -> tuple[bool, str]:
+        """
+        Hissenin Boğa (Yükseliş) veya Ayı (Düşüş) rejiminde olduğunu tespit eder.
+        Eğer hisse sert düşüş trendindeyse (EMA20 < SMA50 veya Price < SMA50 ve negatif eğim),
+        Long işlem açılması engellenir ve %100 nakitte beklenir.
+        """
+        if len(hist_df) < 50:
+            return True, "Nötr Rejim"
+            
+        close = hist_df["close"]
+        current_close = float(close.iloc[-1])
+        sma_50 = float(close.tail(50).mean())
+        ema_20 = float(close.ewm(span=20, adjust=False).mean().iloc[-1])
+        
+        # 20 günlük SMA eğimi (slope)
+        sma_20_prev = float(close.iloc[-25:-5].mean())
+        sma_20_curr = float(close.tail(20).mean())
+        slope_20 = (sma_20_curr - sma_20_prev) / (sma_20_prev + 1e-6)
+        
+        # Ayı Rejimi Koşulları:
+        is_bear = (current_close < sma_50 and ema_20 < sma_50) or (current_close < ema_20 and slope_20 < -0.02)
+        
+        if is_bear:
+            return False, "🐻 Ayı Rejimi (Düşüş Trendi - Nakitte Kal)"
+        return True, "🐂 Boğa / Toparlanma Rejimi (İşleme Açık)"
+
+    def _calculate_dynamic_sl_tp(self, hist_df: pd.DataFrame, default_sl: float = 3.5, default_tp: float = 8.0) -> tuple[float, float]:
+        """
+        Hissenin 14 günlük ATR (Average True Range) ve dalga boyuna göre
+        volatiliteye duyarlı asimetrik Stop-Loss ve Take-Profit oranlarını hesaplar.
+        """
+        if len(hist_df) < 20:
+            return default_sl, default_tp
+            
+        tail_df = hist_df.tail(15)
+        high = tail_df["high"]
+        low = tail_df["low"]
+        close = tail_df["close"]
+        prev_close = close.shift(1)
+        
+        tr1 = high - low
+        tr2 = (high - prev_close).abs()
+        tr3 = (low - prev_close).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1).dropna()
+        
+        atr = float(tr.mean())
+        current_close = float(close.iloc[-1])
+        atr_pct = (atr / current_close) * 100.0 if current_close > 0 else default_sl
+        
+        # Dinamik Stop-Loss: 1.8 * ATR% (Minimum %3.5, Maksimum %7.0)
+        dynamic_sl = max(3.5, min(7.0, atr_pct * 1.8))
+        # Dinamik Take-Profit: En az 2.2 katı (Asimetrik 1:2.2 Risk/Ödül)
+        dynamic_tp = max(default_tp, dynamic_sl * 2.2)
+        
+        return float(dynamic_sl), float(dynamic_tp)
+
     def run_walk_forward_backtest(
         self,
         ticker: str,
@@ -48,7 +104,8 @@ class BistBacktester:
         stop_loss_pct: float = 3.5,
         take_profit_pct: float = 8.0,
         initial_capital: float = 100000.0,
-        allocation_pct: float = 100.0
+        allocation_pct: float = 100.0,
+        enable_regime_filter: bool = True
     ):
         """
         Geçmiş N aylık veri üzerinde Walk-Forward simülasyonu çalıştırır.
@@ -61,7 +118,7 @@ class BistBacktester:
         print(f"🎯 Hedef Hisse    : {ticker}")
         print(f"⏳ Test Periyodu  : Son {months} Ay (Adım: Her {step_days} İşlem Gününde Bir)")
         print(f"🔮 Tahmin Ufku    : {horizon_days} İşlem Günü")
-        print(f"🛡️ Risk Yönetimi  : Stop-Loss: %{stop_loss_pct:.1f} | Kâr Al (TP): %{take_profit_pct:.1f}")
+        print(f"🛡️ Risk Yönetimi  : Dinamik ATR Stop-Loss | Rejim Filtresi: {'Aktif' if enable_regime_filter else 'Pasif'}")
         print(f"💰 Başlangıç Kasa : {initial_capital:,.2f} TRY")
         print("="*85 + "\n")
 
@@ -85,13 +142,7 @@ class BistBacktester:
         test_df = df.iloc[test_start_idx:].copy().reset_index(drop=True)
 
         trades = []
-        equity_curve = []
         current_capital = initial_capital
-
-        # Günlük portföy değeri takibi için harita
-        daily_portfolio = {}
-        for d in test_df["timestamps"]:
-            daily_portfolio[d] = current_capital
 
         # 2. Walk-Forward Döngüsü (Pencere Kaydırma)
         current_idx = test_start_idx
@@ -109,41 +160,50 @@ class BistBacktester:
             if len(forward_window) == 0:
                 break
 
-            # Model Tahmini Üret
+            # 1. Rejim Filtresi Kontrolü
+            is_bull, regime_str = self._check_market_regime(hist_df)
+            
+            # 2. Dinamik ATR Stop-Loss ve Take-Profit
+            active_sl, active_tp = self._calculate_dynamic_sl_tp(hist_df, stop_loss_pct, take_profit_pct)
+
+            # 3. Model Tahmini Üret
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
-            # Sadece Alım (Long) Sinyali Üretilmişse İşleme Gir (Örn: Model en az %1.5 yükseliş bekliyorsa)
-            if expected_return > 1.5:
+            # İşlem Kararı:
+            # Eğer rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%6 beklenen getiri) yoksa NAKİTTE KAL!
+            should_enter = expected_return > 1.5 and (is_bull or not enable_regime_filter or expected_return > 6.0)
+
+            if should_enter:
                 trade_allocated = current_capital * (allocation_pct / 100.0)
                 shares = trade_allocated / entry_price
                 cash_reserve = current_capital - trade_allocated
 
                 exit_price = float(forward_window["close"].iloc[-1])
                 exit_date = forward_window["timestamps"].iloc[-1]
-                exit_reason = "Vade Sonu (Horizon Close)"
+                exit_reason = f"Vade Sonu ({horizon_days}G)"
                 duration = len(forward_window)
 
-                # Gün gün High / Low kontrolü (Stop-Loss veya Take-Profit tetiklendi mi?)
+                # Gün gün High / Low kontrolü (Dinamik Stop-Loss veya Take-Profit tetiklendi mi?)
                 for day_i, (_, f_row) in enumerate(forward_window.iterrows(), 1):
                     f_high = float(f_row["high"])
                     f_low = float(f_row["low"])
                     f_date = f_row["timestamps"]
 
-                    # Stop-Loss Kontrolü
-                    sl_price = entry_price * (1.0 - stop_loss_pct / 100.0)
+                    # Dinamik Stop-Loss Kontrolü
+                    sl_price = entry_price * (1.0 - active_sl / 100.0)
                     if f_low <= sl_price:
                         exit_price = sl_price
                         exit_date = f_date
-                        exit_reason = "Stop-Loss (Zarar Kes)"
+                        exit_reason = f"Stop-Loss (%{active_sl:.1f})"
                         duration = day_i
                         break
 
-                    # Take-Profit Kontrolü
-                    tp_price = entry_price * (1.0 + take_profit_pct / 100.0)
+                    # Dinamik Take-Profit Kontrolü
+                    tp_price = entry_price * (1.0 + active_tp / 100.0)
                     if f_high >= tp_price:
                         exit_price = tp_price
                         exit_date = f_date
-                        exit_reason = "Take-Profit (Kâr Al)"
+                        exit_reason = f"Take-Profit (%{active_tp:.1f})"
                         duration = day_i
                         break
 
@@ -162,13 +222,15 @@ class BistBacktester:
                     "duration_days": duration,
                     "reason": exit_reason,
                     "expected_return": expected_return,
+                    "regime": regime_str,
+                    "sl_used": active_sl,
+                    "tp_used": active_tp,
                     "win": trade_return_pct > 0
                 })
 
-                # Bir sonraki adıma geçiş: İşlem erken bittiyse işlem süresi kadar, yoksa step_days kadar ilerle
                 step = max(1, min(duration, step_days))
             else:
-                # Nötr / Düşüş sinyali: Pozisyon açma, nakitte bekle
+                # Ayı piyasası veya Nötr sinyal: Nakitte bekle
                 step = step_days
 
             current_idx += step
