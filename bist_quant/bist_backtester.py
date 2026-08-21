@@ -170,9 +170,9 @@ class BistBacktester:
             expected_return = self._predict_return(hist_df, horizon_days=horizon_days)
 
             # İşlem Kararı:
-            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%5 beklenen getiri) yoksa NAKİTTE KAL!
-            min_thresh = 0.8 if self.quant_engine is not None else 1.2
-            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter or expected_return > 4.5)
+            # Rejim ayı piyasasıysa ve çok olağanüstü bir dip kırılımı (>%3 beklenen getiri) yoksa NAKİTTE KAL!
+            min_thresh = 0.05 if self.quant_engine is not None else 1.2
+            should_enter = expected_return > min_thresh and (is_bull or not enable_regime_filter or expected_return > 3.0)
 
             if should_enter:
                 trade_allocated = current_capital * (allocation_pct / 100.0)
@@ -370,12 +370,16 @@ class BistBacktester:
 
     def _calculate_performance_metrics(self, trades: list, test_df: pd.DataFrame, initial_capital: float, final_capital: float) -> dict:
         """Wall Street standartlarında risk ve getiri metriklerini hesaplar."""
+        bnh_start = float(test_df["close"].iloc[0]) if len(test_df) > 0 else 1.0
+        bnh_end = float(test_df["close"].iloc[-1]) if len(test_df) > 0 else 1.0
+        bnh_return_pct = ((bnh_end - bnh_start) / bnh_start) * 100.0
+
         total_trades = len(trades)
         if total_trades == 0:
             return {
                 "total_trades": 0, "winning_trades": 0, "losing_trades": 0,
-                "win_rate": 0.0, "total_return_pct": 0.0, "bnh_return_pct": 0.0,
-                "alpha": 0.0, "sharpe_ratio": 0.0, "sortino_ratio": 0.0,
+                "win_rate": 0.0, "total_return_pct": 0.0, "bnh_return_pct": bnh_return_pct,
+                "alpha": -bnh_return_pct, "sharpe_ratio": 0.0, "sortino_ratio": 0.0,
                 "max_drawdown": 0.0, "profit_factor": 0.0, "payoff_ratio": 0.0,
                 "avg_gain": 0.0, "avg_loss": 0.0, "avg_trade_return": 0.0,
                 "initial_capital": initial_capital, "final_capital": final_capital

@@ -93,14 +93,14 @@ Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Looka
 
 | Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha ($\alpha$) | Risk & Performans Metrikleri |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **ISCTR.IS** (102.3M AI) | **Son 6 Ay** | **-%23.25** 🔴 | **%+18.08** 🟢 | **🚀 +%41.33 ALPHA** | **Win Rate: %100.0** \| Sharpe: 25.03 \| MDD: %0.00 |
-| **FROTO.IS** (102.3M AI) | **Son 12 Ay** | **-%25.28** 🔴 | **-%0.89** 🟢 | **🚀 +%24.38 ALPHA** | **Win Rate: %50.0** \| MDD: -%1.31 (Tam Koruma) |
-| **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
+| **ISCTR.IS** (Fine-Tuned AI) | **Son 6 Ay** | **-%23.19** 🔴 | **%+0.83** 🟢 | **🚀 +%24.02 ALPHA** | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
+| **FROTO.IS** (Fine-Tuned AI) | **Son 12 Ay** | **-%25.28** 🔴 | **-%10.06** 🟢 | **🚀 +%15.22 ALPHA** | **Ayı Kalkanı** \| MDD: -%10.44 (Zararı %60 Azalttı) |
+| **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
 
-> 💡 **Öne Çıkan Başarılar (Ayı Piyasası Kalkanı & Trend Takibi):**
-> 1. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda sıkı para politikası ve bankacılık baskısıyla **%23.25 erirken**, 102.3M parametreli Kronos Transformer modelimiz tuzak düşüşlerden kaçınmış, doğru dip seviyelerinde girip çıkarak **100.000 TL'lik portföyü 118.080 TL'ye (+%18.08)** çıkarmış ve hisseye **+%41.33 Alpha farkı** atmıştır.
-> 2. **FROTO Sermaye Koruması:** FROTO 1 yıl boyunca **%25.28 değer kaybederken**, model rejim filtresi ve derin öğrenmeyle neredeyse sıfır kayıpla (%-0.89) **+%24.38 Alpha** üreterek portföyü çökmekten korumuştur.
-> 3. **ASELSAN Trend Koşusu:** ASELSAN'ın devasa rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
+> 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Trend Takibi):**
+> 1. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş 102.3M modelimiz ayı piyasasının tuzak düşüşlerinden kaçınmış, doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
+> 2. **FROTO Sermaye Koruması:** FROTO 1 yıl boyunca **%25.28 değer kaybederken**, model rejim filtresiyle nakitte kalarak potansiyel zararı %60 oranında engellemiş ve **+%15.22 Alpha** sağlamıştır.
+> 3. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
 
 
 ---
