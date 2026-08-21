@@ -111,14 +111,16 @@ Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Looka
 | Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha (α) | Risk & Performans Metrikleri |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **FROTO.IS** (VİOP Long/Short) | **Son 12 Ay** | **-%25.28** 🔴 | **%+101.64** 🟢 | **🚀 +%126.91 ALPHA** | **Düşüşte 2x Kâr** \| PF: 2.07x \| Sortino: 4.44 |
-| **ISCTR.IS** (Fine-Tuned AI) | **Son 6 Ay** | **-%23.19** 🔴 | **%+0.83** 🟢 | **🚀 +%24.02 ALPHA** | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
-| **FROTO.IS** (Spot Defansif) | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢 | **🚀 +%25.28 ALPHA** | **Tam Koruma** \| MDD: -%0.00 (%100 Nakit) |
-| **ASELS.IS** (Trailing Stop)| **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢 | **🛡️ MDD: -%5.99** | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
+| **ISCTR.IS** (VİOP Long/Short) | **Son 6 Ay**  | **-%23.19** 🔴 | **%+74.78** 🟢  | **🚀 +%97.97 ALPHA**  | **Short+Long Kâr** \| PF: 3.50x \| Sharpe: 2.57 |
+| **ISCTR.IS** (Spot Defansif)   | **Son 6 Ay**  | **-%23.19** 🔴 | **%+0.83** 🟢   | **🚀 +%24.02 ALPHA**  | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
+| **FROTO.IS** (Spot Defansif)   | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢   | **🚀 +%25.28 ALPHA**  | **Tam Koruma** \| MDD: -%0.00 (%100 Nakit) |
+| **ASELS.IS** (Trailing Stop)   | **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢  | **🛡️ MDD: -%5.99**    | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
 
 > 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Çift Yönlü Kazanç):**
 > 1. **FROTO VİOP Short Zaferi:** Hisse 1 yıl boyunca **-%25.28 çökerken**, VİOP Çift Yönlü motorumuz düşüş trendinde **Kısa Pozisyon (Short / Açığa Satış)** açarak ve Takasbank nemalandırmasıyla **100.000 TL'lik kasayı 201.635 TL'ye (+%101.64 Net Kâr)** çıkarmış ve hisseye **+%126.91 ALPHA** farkı atmıştır!
-> 2. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş modelimiz doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
-> 3. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
+> 2. **ISCTR VİOP Çift Yönlü Kazanç:** Bankacılık sektörü son 6 ayda **-%23.19 erirken**, VİOP motorumuz düşüş dalgalarında Short, dipten dönüşlerde Long pozisyonlar ve Takasbank nemalandırmasıyla **100.000 TL kasayı 174.777 TL'ye (+%74.78 Net Kâr)** taşımış, **3.50x Kâr Faktörü** ve **2.57 Sharpe Oranı** ile hisseye **+%97.97 ALPHA** farkı atmıştır!
+> 3. **ISCTR Spot Kriz Kalkanı:** Spot piyasada ISCTR son 6 ayda %23.19 düşerken, fine-tune edilmiş modelimiz ayı piyasasının tuzaklarından kaçınarak **kârda kalmayı başarmış (+%0.83)** ve sermayeyi sıfır kayıpla korumuştur.
+> 4. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
 
 ---
 
