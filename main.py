@@ -23,6 +23,7 @@ from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee
 from bist_quant.bist_scanner import BistScanner
+from bist_quant.bist_backtester import BistBacktester
 
 def banner():
     print("""
@@ -30,8 +31,10 @@ def banner():
    BIST 100 HIBRIT YAPAY ZEKA KANTITATIF VE KOMITE YATIRIM SISTEMI
 --------------------------------------------------------------------------------
  [*] Cekirdek 1 : Kronos-Base Foundation Model (102.3M Parametre - Mum Tahmincisi)
- [*] Cekirdek 2 : TradingAgents Coklu Yapay Zeka Komitesi (Bull vs Bear Debate)
- [*] Cekirdek 3 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
+ [*] Cekirdek 2 : Klasik Ekonometri & 1.000 Yollu Monte Carlo Motoru (ADF & VaR)
+ [*] Cekirdek 3 : TradingAgents Coklu Yapay Zeka Komitesi (Bull vs Bear Debate & XAI)
+ [*] Cekirdek 4 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
+ [*] Cekirdek 5 : Walk-Forward Backtesting & Finansal Performans Doğrulama Motoru
  [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
 ================================================================================
 """)
@@ -76,6 +79,33 @@ def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str
     except Exception as e:
         print(f"\n[TARAMA HATASI] Tarama sirasinda problem olustu: {e}")
 
+def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False):
+    if not ticker:
+        print("[HATA] Lutfen backtest edilecek BIST sembolu girin. Orn: '--backtest ISCTR.IS'")
+        return
+    try:
+        backtester = BistBacktester(use_kronos=use_kronos)
+        metrics, rep_file, chart_file = backtester.run_walk_forward_backtest(
+            ticker=ticker,
+            months=months,
+            stop_loss_pct=sl,
+            take_profit_pct=tp
+        )
+        print("\n" + "="*85)
+        print(f"🏆 BACKTEST TAMAMLANDI: {ticker} (Son {months} Ay)")
+        print("="*85)
+        print(f"💰 Strateji Toplam Getirisi : %{metrics['total_return_pct']:+.2f} (Al-Tut: %{metrics['bnh_return_pct']:+.2f})")
+        print(f"🚀 Alpha (Endeks Üstü Fark) : %{metrics['alpha']:+.2f}")
+        print(f"🎯 Kazanma Oranı (Win Rate) : %{metrics['win_rate']:.1f} ({metrics['winning_trades']}/{metrics['total_trades']} İşlem)")
+        print(f"📊 Sharpe Oranı (Yıllık)   : {metrics['sharpe_ratio']:.2f}")
+        print(f"📉 Maksimum Çekilme (MDD)   : -%{metrics['max_drawdown']:.2f}")
+        print(f"⚖️ Kâr Faktörü (Profit F.)  : {metrics['profit_factor']:.2f}x")
+        print("="*85)
+        print(f"📑 Detaylı Backtest Raporu   : {rep_file}")
+        print(f"📈 Kasa Sermaye Eğrisi (PNG) : {chart_file}\n")
+    except Exception as e:
+        print(f"\n[BACKTEST HATASI] Simülasyon sırasında problem oluştu: {e}")
+
 def main():
     banner()
     parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi Ana Iletisim Arayuzu")
@@ -87,10 +117,15 @@ def main():
     parser.add_argument("--train-predictor", action="store_true", help="Tokenizer egitimini atlayıp dogrudan Tahminci (Predictor) motorunun derin egitimine basla")
     parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Secilen BIST hissesinde (Orn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu uret")
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
+    parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Secilen hissede gecmis N aylik Walk-Forward Backtest simülasyonu calistir")
     
     # Opsiyonel parametreler
     parser.add_argument("--top", type=int, default=5, help="Tarama modunda derin analize girecek hisse sayisi (Varsayilan: 5)")
     parser.add_argument("--days", type=int, default=15, help="Kronos-base quant projeksiyon gun sayisi (Varsayilan: 15)")
+    parser.add_argument("--months", type=int, default=6, help="Backtest test periyodu (Ay, Varsayilan: 6)")
+    parser.add_argument("--sl", type=float, default=3.5, help="Backtest Stop-Loss yuzdesi (Varsayilan: 3.5)")
+    parser.add_argument("--tp", type=float, default=8.0, help="Backtest Take-Profit yuzdesi (Varsayilan: 8.0)")
+    parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest icinde derin Kronos modelini calistir")
     parser.add_argument("--model", type=str, default="gemini-2.5-pro", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-2.5-pro)")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayisi")
     parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor (base) epok sayisi")
@@ -118,6 +153,9 @@ def main():
 
     if args.scan:
         handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)
+
+    if args.backtest:
+        handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest)
 
 if __name__ == "__main__":
     main()
