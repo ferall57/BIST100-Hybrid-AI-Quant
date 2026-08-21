@@ -4,21 +4,21 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-102.3M_Params-ee4c2c.svg)
 ![Statsmodels](https://img.shields.io/badge/Econometrics-ADF_%26_Monte_Carlo-orange.svg)
 ![Backtesting](https://img.shields.io/badge/Backtest-Walk--Forward_Alpha-green.svg)
-![Gemini](https://img.shields.io/badge/Gemini-3.5_Flash-00a498.svg)
+![Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-00a498.svg)
 ![Status](https://img.shields.io/badge/Status-Production_Ready-success.svg)
 
-Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber RSS Akışı** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
+Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber NLP Duyarlılık Füzyonu**, **VİOP Çift Yönlü (Long/Short) Türev Motoru** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
 
 ---
 
 ## 🚀 Proje Vizyonu
-Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci, klasik ekonometri (ADF durağanlık, mevsimsellik, volatilite rejimi), 1.000 yollu Monte Carlo stokastik simülasyonu, Walk-Forward geçmiş performans doğrulaması ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
+Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci, klasik ekonometri (ADF durağanlık, mevsimsellik, volatilite rejimi), 1.000 yollu Monte Carlo stokastik simülasyonu, Walk-Forward geçmiş performans doğrulaması, canlı KAP haber duyarlılığı ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
 
 ---
 
 ## 🧠 Sistem Mimarisi
 
-Sistem birbirine entegre çalışan 5 ana Çekirdek (Core) üzerinden çalışır:
+Sistem birbirine entegre çalışan **7 ana Çekirdek (Core)** üzerinden çalışır:
 
 ```mermaid
 graph TD
@@ -28,9 +28,10 @@ graph TD
     A --> F[Bilanço Rasyoları: F/K, PD/DD, ROE]
     A --> G[Canlı Makro: XU100, USD/TRY]
     
-    B -->|1H & 15-30G Mum/Fiyat Projeksiyonu| D(Çekirdek 3: TradingAgents Komitesi)
-    E_CON -->|ADF Testi, Parkinson Volatilite, VaR, 1.000 Yollu Monte Carlo| D
-    C -->|Son 24/48 Saat KAP & Haberler| D
+    C --> NLP(Çekirdek 6: NLP Haber & KAP Duyarlılık Füzyonu)
+    NLP --> D(Çekirdek 3: TradingAgents Komitesi)
+    B -->|1H & 15-30G Mum Projeksiyonu| D
+    E_CON -->|ADF Testi, Parkinson Volatilite, VaR, Monte Carlo| D
     F -->|Temel Finansal Çarpanlar| D
     G -->|Piyasa & Döviz Yönü| D
     
@@ -45,13 +46,15 @@ graph TD
     D4 --> D5
     end
     
-    D5 -->|AL / SAT / TUT, Stop-Loss, XAI Ağırlıkları| E[Nihai Yatırım Raporu]
+    D5 -->|AL / SAT / TUT, Dinamik Stop, XAI Ağırlıkları| E[Nihai Yatırım Raporu]
     
     H(Çekirdek 4: BIST Screener Tarama Motoru) -->|Tüm Evreni Tara: BIST 30 / 100| B
     H -->|En Yüksek Potansiyelli Top N Hisse| D
     H -->|Konsolide Bülten| I[BIST Keşif & Tarama Bülteni]
 
     J(Çekirdek 5: Walk-Forward Backtesting) -->|Lookahead-Free Rolling Window| K[Equity Curve & Sharpe/MDD Raporu]
+    
+    L(Çekirdek 7: VİOP Çift Yönlü Türev Motoru) -->|Kaldıraçlı Long & Short + Nemalandırma| M[Piyasa Nötr Türev Getirisi]
 ```
 
 ---
@@ -62,7 +65,7 @@ graph TD
 * `holidays` entegrasyonu sayesinde Türkiye'nin resmi ve dini tatil günlerini otomatik algılayıp projeksiyondan atlar.
 
 ### 🔹 Çekirdek 2: Klasik Ekonometri & 1.000 Yollu Monte Carlo Motoru
-* **Augmented Dickey-Fuller (ADF) Durağanlık Testi:** Serinin birim kök ve trend karakterini $p$-değeri ile matematiksel olarak ispatlar.
+* **Augmented Dickey-Fuller (ADF) Durağanlık Testi:** Serinin birim kök ve trend karakterini *p*-değeri ile matematiksel olarak ispatlar.
 * **Mevsimsellik (Seasonality):** Günlük/haftalık getiri varyansını ve anomali günlerini ölçer.
 * **Parkinson High-Low Volatilitesi:** Gün içi oynaklık dalga boyunu ölçerek volatilite rejimini (Düşük / Normal / Yüksek Risk) belirler.
 * **1.000 Yollu Geometrik Brown Hareketi (GBM):** 1.000 bağımsız stokastik simülasyon ile hem 1 haftalık hem orta vadeli medyan getiri, **%95 Güven Aralığı Bandı**, **Yükseliş Olasılığı (Win Rate %)** ve **Parametrik VaR (%95)** hesaplar.
@@ -82,15 +85,17 @@ graph TD
 ### 🔹 Çekirdek 5: Walk-Forward Backtesting & Finansal Doğrulama Motoru
 * **Zaman Sızıntısız (Lookahead-Free) Rolling Window:** Model her adımda sadece o günün gerisindeki mumları görerek geçmiş periyotta işlem açar.
 * **Dinamik Risk Yönetimi & İz Süren Stop:** Volatiliteye duyarlı ATR stop-loss ve trend sürme (Trailing Stop) ile kârı sonuna kadar koşturur.
-* **Wall Street Performans Metrikleri:** Sharpe Oranı, Sortino Oranı, **Kazanma Oranı (Win Rate %)**, **Kâr Faktörü (Profit Factor)**, **Maksimum Çekilme (MDD %)** ve **Alpha ($\alpha$)**.
+* **Wall Street Performans Metrikleri:** Sharpe Oranı, Sortino Oranı, **Kazanma Oranı (Win Rate %)**, **Kâr Faktörü (Profit Factor)**, **Maksimum Çekilme (MDD %)** ve **Alpha (α)**.
 * **Görsel Sermaye Eğrisi (Equity Curve):** 100.000 TL başlangıç sermayesinin Al-Tut (Buy & Hold) karşısındaki büyüme eğrisini çizer.
 
 ### 🔹 Çekirdek 6: Çok Modlu (Multi-Modal) NLP Haber & KAP Duyarlılık Füzyon Motoru
-* **Finansal NLP Duyarlılık Skorlaması:** Canlı KAP bildirimleri ve Google News TR akışını analiz edip **$[-1.0, +1.0]$** arasında sayısal duyarlılık skoru ve **$[%0, \%100]$** etki şiddeti üretir.
+* **Finansal NLP Duyarlılık Skorlaması:** Canlı KAP bildirimleri ve Google News TR akışını analiz edip `[-1.0, +1.0]` arasında sayısal duyarlılık skoru ve `[%0, %100]` etki şiddeti üretir.
 * **Pozitif / Negatif Katalizör Tespiti:** Ciro artırıcı dev ihaleler, bedelsiz sermaye, pay geri alımları veya ceza/fabrika durdurma krizlerini anında etiketler.
 * **Matematiksel Hibrit Füzyon Matrisi:**
-  $$R_{fused} = (1 - w_{news}) \cdot R_{tech} + w_{news} \cdot \left( S_{news} \times I_{impact} \times \sigma_{volatility} \right)$$
-* **Dinamik Eşik & Kârı Koşturma Stop Mesafesi:** Güçlü katalizörlü hisselerde teknik giriş barajını düşürür ($\text{min\_thresh} \downarrow$) ve erken silkelenmeyi önlemek için İz Süren Stop mesafesini genişletir ($4\% \rightarrow 7.5\%$).
+  ```text
+  R_fused = (1 - w_news) * R_tech + w_news * (S_news * I_impact * σ_volatility)
+  ```
+* **Dinamik Eşik & Kârı Koşturma Stop Mesafesi:** Güçlü pozitif katalizörlü hisselerde teknik giriş barajını düşürür (`min_thresh` ↓) ve erken silkelenmeyi önlemek için İz Süren Stop mesafesini genişletir (`%4.0 -> %7.5`).
 
 ### 🔹 Çekirdek 7: VİOP Çift Yönlü (Long/Short) Türev & Nemalandırma Motoru
 * **Çift Yönlü Kazanç (Bi-directional Alpha):** Yükseliş trendinde Kaldıraçlı Long, düşüş trendinde **Kaldıraçlı Short (Açığa Satış)** açarak ayı piyasalarından devasa kârlar üretir.
@@ -103,7 +108,7 @@ graph TD
 
 Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Lookahead Bias %0)** gerçekleştirdiği bağımsız test sonuçları:
 
-| Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha ($\alpha$) | Risk & Performans Metrikleri |
+| Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha (α) | Risk & Performans Metrikleri |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **FROTO.IS** (VİOP Long/Short) | **Son 12 Ay** | **-%25.28** 🔴 | **%+101.64** 🟢 | **🚀 +%126.91 ALPHA** | **Düşüşte 2x Kâr** \| PF: 2.07x \| Sortino: 4.44 |
 | **ISCTR.IS** (Fine-Tuned AI) | **Son 6 Ay** | **-%23.19** 🔴 | **%+0.83** 🟢 | **🚀 +%24.02 ALPHA** | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
@@ -114,7 +119,6 @@ Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Looka
 > 1. **FROTO VİOP Short Zaferi:** Hisse 1 yıl boyunca **-%25.28 çökerken**, VİOP Çift Yönlü motorumuz düşüş trendinde **Kısa Pozisyon (Short / Açığa Satış)** açarak ve Takasbank nemalandırmasıyla **100.000 TL'lik kasayı 201.635 TL'ye (+%101.64 Net Kâr)** çıkarmış ve hisseye **+%126.91 ALPHA** farkı atmıştır!
 > 2. **ISCTR Kriz Kalkanı:** ISCTR son 6 ayda bankacılık baskısıyla **%23.19 erirken**, BIST üzerinde fine-tune edilmiş modelimiz doğru dip seviyelerini yakalayarak hisse çökerken **kârda kalmayı başarmış (+%0.83)** ve hisseye **+%24.02 Alpha farkı** atmıştır.
 > 3. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
-
 
 ---
 
