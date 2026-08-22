@@ -211,6 +211,13 @@ class BistBacktester:
 
                     if use_viop:
                         accumulated_interest += current_capital * daily_interest_rate
+                        
+                        # 🔄 2 AYLIK BIST VİOP VADE SONU & ROLLOVER SİMÜLASYONU (Fix 4.2)
+                        # Çift aylar (Şubat, Nisan, Haziran, Ağustos, Ekim, Aralık) son haftasında vade taşıma
+                        if f_date.month in [2, 4, 6, 8, 10, 12] and f_date.day >= 25:
+                            # Rollover taşıma maliyeti (%0.15 sürtünme ve spread kayması)
+                            rollover_friction = trade_allocated * 0.0015
+                            accumulated_interest -= rollover_friction
 
                     if direction == "LONG":
                         if f_high > peak_price:
@@ -257,7 +264,7 @@ class BistBacktester:
                             duration = day_i
                             break
 
-                # Getiri Hesabı
+                # Getiri Hesabı (Cost-of-Carry Vadeli Temel)
                 if direction == "LONG":
                     price_change_pct = ((exit_price - entry_price) / entry_price) * 100.0
                 else:  # SHORT

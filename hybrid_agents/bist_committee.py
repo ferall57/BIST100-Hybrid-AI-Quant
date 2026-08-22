@@ -281,14 +281,30 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 5. VİOP Türev & Teminat Hesaplaması
+        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPISI (Fix 5.1 - LLM Bullish Bias Guardrail)
+        mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
+        akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
+        
+        veto_triggered = False
+        veto_reason = ""
+        if mc_data.get("prob_positive", 50.0) < 38.0 and akd_data.get("cmf_20", 0.0) < -0.12:
+            if "AL" in executive_verdict.upper() or "BUY" in executive_verdict.upper():
+                veto_triggered = True
+                veto_reason = f"Merton MC Kazanma Olasılığı (%{mc_data.get('prob_positive', 0.0):.1f} < %38) ve CMF Para Çıkışı ({akd_data.get('cmf_20', 0.0):.3f})"
+                executive_verdict = f"""> [!WARNING]
+> 🛡️ **DETERMİNİSTİK HARD-GATE VETO KALKANI DEVREDE:**
+> Yapay zeka delegasyonu yükseliş yönlü tezler sunsa da; **matematiksel risk eşikleri** ({veto_reason}) nedeniyle komite kararı programatik olarak **"TUT / GÖZLEMLE (Beklemede Kal)"** seviyesine revize edilmiştir.
+""" + executive_verdict
+
+        # 5. VİOP Türev & Dinamik SPAN Teminat Hesaplaması (Fix 4.3 & 4.1)
         contract_code = self.viop_engine.get_contract_code(ticker)
-        viop_pos = self.viop_engine.calculate_position_size(capital=100000.0, spot_price=current_price, leverage=1.5)
+        viop_pos = self.viop_engine.calculate_position_size(capital=100000.0, spot_price=current_price, ticker=ticker, leverage=1.5)
+        theo_futures_p = self.viop_engine.calculate_theoretical_futures_price(spot_price=current_price, days_to_expiry=30)
         
         # 6. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + VİOP Türev Motoru + Takasbank AKD Radarı + Gemini Rotational Multi-Agent Debate
+**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP Cost-of-Carry Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate
 
 ---
 
@@ -298,7 +314,8 @@ class BistHybridCommittee:
 
 ## ⚡ VİOP (VADELİ İŞLEM VE OPSİYON PİYASASI) TÜREV & HEDGE MATRİSİ
 * **VİOP Kontrat Kodu:** `{contract_code}` (1 Kontrat = 100 Pay)
-* **1 Kontrat Büyüklüğü:** {viop_pos['contract_value']:,.2f} TRY | **Başlangıç Teminatı:** {viop_pos['required_margin']/max(1, viop_pos['contracts']):,.2f} TRY / Kontrat (~%22)
+* **Spot Fiyat:** {current_price:.2f} TRY | **Teorik Vadeli Fiyat (Cost-of-Carry):** **{theo_futures_p:.2f} TRY**
+* **1 Kontrat Büyüklüğü:** {viop_pos['contract_value']:,.2f} TRY | **Takasbank Maktu SPAN Teminatı:** **{viop_pos['required_margin']/max(1, viop_pos['contracts']):,.2f} TRY / Kontrat**
 * **100.000 TL Kasa İçin Pozisyon:** {viop_pos['contracts']} Kontrat ({viop_pos['contracts']*100} Pay) | **Toplam Notional Değer:** {viop_pos['notional_value']:,.2f} TRY (Efektif Kaldıraç: {viop_pos['effective_leverage']}x)
 * **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi gecelik yıllık ~%45 bileşik faiz getirisi üretir.
 * **Ters / İz Süren Stop:** Long pozisyonlar için zirveden %4.5 aşağı, Short pozisyonlar için dipten %4.5 yukarı tepkide kâr koruma kalkanı devrededir.

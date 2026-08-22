@@ -114,16 +114,20 @@ class BistKronosQuant:
         
         print(f"⚡ {ticker} için {lookback} günlük geçmiş kullanılarak {pred_len} günlük Kronos tahmini hesaplanıyor...")
         
-        # Tahmin üret
+        # Tahmin üret (Çoklu-Patika Monte Carlo Çıkarım Topluluğu)
+        sample_count = max(sample_count, 5)
         pred_df = self.predictor.predict(
             df=x_df,
             x_timestamp=x_timestamp,
             y_timestamp=y_timestamp_series,
             pred_len=pred_len,
-            T=0.8,
-            top_p=0.9,
+            T=0.7,
+            top_p=0.85,
             sample_count=sample_count
         )
+        
+        # 🛡️ MUM FİZİĞİ & BIST DEVRE KESİCİ SANITIZER KATMANI (Fix 2.1 & 2.2)
+        pred_df = self._sanitize_candlestick_physics(pred_df, current_close=float(hist_df["close"].iloc[-1]))
         
         # Grafiği Çiz
         chart_path = self._plot_forecast(ticker, hist_df.tail(60), pred_df, y_timestamp_series)
@@ -168,6 +172,40 @@ class BistKronosQuant:
 Kronos-Base modeli, BIST piyasasının geçmiş mum örüntülerini analiz ederek 1 haftalık kısa vadede {pred_1w_target:.2f} TRY (%{expected_1w_return:+.2f}), {pred_len} işlem günlük orta vadede ise {pred_target:.2f} TRY (%{expected_return:+.2f}) yönlü bir fiyat rotası öngörmüştür. Model, 1 haftalık süreçte {pred_1w_min:.2f} TRY seviyesini kısa vadeli destek, {pred_max:.2f} TRY seviyesini ise ana hedef direnç koridoru olarak işaret etmektedir.
 """
         return report, chart_path
+
+    def _sanitize_candlestick_physics(self, pred_df: pd.DataFrame, current_close: float) -> pd.DataFrame:
+        """
+        Model tahminlerindeki mum tutarsızlıklarını (High < Close, Low > Open) düzeltir
+        ve Borsa İstanbul günlük %10 tavan/taban limitleri içinde kalarak fiziksel tutarlılık sağlar.
+        """
+        clean_df = pred_df.copy()
+        prev_close = current_close
+
+        for i in range(len(clean_df)):
+            max_limit = prev_close * 1.10
+            min_limit = prev_close * 0.90
+
+            o = float(clean_df.iloc[i].get("open", prev_close))
+            h = float(clean_df.iloc[i].get("high", prev_close))
+            l = float(clean_df.iloc[i].get("low", prev_close))
+            c = float(clean_df.iloc[i].get("close", prev_close))
+
+            # BIST %10 Tavan/Taban sınırlarına sıkıştır (Circuit Breaker)
+            o = max(min_limit, min(max_limit, o))
+            c = max(min_limit, min(max_limit, c))
+            
+            # Mum Fiziği: High en yüksek, Low en düşük olmalıdır
+            h = max(o, c, min(max_limit, h))
+            l = min(o, c, max(min_limit, l))
+
+            clean_df.iloc[i, clean_df.columns.get_loc("open")] = round(o, 2)
+            clean_df.iloc[i, clean_df.columns.get_loc("high")] = round(h, 2)
+            clean_df.iloc[i, clean_df.columns.get_loc("low")] = round(l, 2)
+            clean_df.iloc[i, clean_df.columns.get_loc("close")] = round(c, 2)
+
+            prev_close = c
+
+        return clean_df
 
     def _plot_forecast(self, ticker, hist_df, pred_df, y_timestamps):
         plt.style.use('dark_background')

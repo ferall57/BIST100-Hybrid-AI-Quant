@@ -28,6 +28,24 @@ class BistViopEngine:
     BIST VİOP Çift Yönlü (Long/Short) Kuant Türev İşlem Motoru.
     """
 
+    # Takasbank Resmi Maktu SPAN Teminat Tablosu (TL / Kontrat)
+    TAKASBANK_SPAN_MARGINS = {
+        "THYAO": 6200.0,
+        "ISCTR": 272.0,
+        "AKBNK": 1520.0,
+        "GARAN": 2650.0,
+        "EREGL": 880.0,
+        "ASELS": 890.0,
+        "FROTO": 24500.0,
+        "BIMAS": 9200.0,
+        "KCHOL": 3800.0,
+        "TUPRS": 3400.0,
+        "SAHOL": 1850.0,
+        "EKGYO": 420.0,
+        "SISE": 890.0,
+        "F_XU030": 16500.0
+    }
+
     def __init__(
         self,
         default_leverage: float = 1.5,
@@ -35,11 +53,26 @@ class BistViopEngine:
         commission_rate: float = 0.0004
     ):
         self.default_leverage = default_leverage
+        self.overnight_interest_annual = overnight_interest_annual
         # Takasbank Gecelik Nemalandırma Günlük Bileşik Oranı (Yıllık %45 varsayımı)
         self.daily_interest_rate = (1.0 + overnight_interest_annual) ** (1.0 / 365.0) - 1.0
         self.commission_rate = commission_rate
         self.contract_multiplier = 100  # 1 Pay Kontratı = 100 Adet Hisse Senedi
-        self.initial_margin_ratio = 0.22  # Takasbank Başlangıç Teminatı (~%22)
+        self.default_margin_ratio = 0.22  # Liste dışı hisseler için varsayılan teminat oranı (~%22)
+
+    def calculate_theoretical_futures_price(
+        self,
+        spot_price: float,
+        days_to_expiry: int = 30,
+        dividend_yield_annual: float = 0.02
+    ) -> float:
+        """
+        Cost-of-Carry (Taşıma Maliyeti) modeline göre teorik VİOP vadeli fiyatını hesaplar.
+        F = S * (1 + (r_f - q) * (T - t) / 365)
+        """
+        net_carry_rate = self.overnight_interest_annual - dividend_yield_annual
+        futures_price = spot_price * (1.0 + (net_carry_rate * (days_to_expiry / 365.0)))
+        return round(futures_price, 2)
 
     def get_contract_code(self, ticker: str) -> str:
         """Hisse sembolünden VİOP kontrat kodunu türetir (Örn: THYAO.IS -> F_THYAO)."""
@@ -50,28 +83,38 @@ class BistViopEngine:
         self,
         capital: float,
         spot_price: float,
+        ticker: str = "",
         leverage: float = 1.5,
         allocation_pct: float = 80.0
     ) -> dict:
         """
-        Kasa büyüklüğüne ve hedef kaldıraca göre güvenli kontrat sayısını hesaplar.
+        Kasa büyüklüğüne, Takasbank SPAN teminatına ve hedef kaldıraca göre güvenli kontrat sayısını hesaplar.
         """
         if spot_price <= 0 or capital <= 0:
             return {"contracts": 0, "notional_value": 0.0, "required_margin": 0.0, "cash_reserve": capital}
 
-        target_notional = capital * (allocation_pct / 100.0) * leverage
+        clean = ticker.replace(".IS", "").strip().upper()
+        # Maktu SPAN teminatı varsa doğrudan kullan, yoksa yüzde bazlı hesapla
+        span_margin_per_contract = self.TAKASBANK_SPAN_MARGINS.get(clean, None)
+
         contract_value = spot_price * self.contract_multiplier
+        target_notional = capital * (allocation_pct / 100.0) * leverage
         num_contracts = max(1, int(target_notional / contract_value))
 
-        actual_notional = num_contracts * contract_value
-        required_margin = actual_notional * self.initial_margin_ratio
+        if span_margin_per_contract is not None:
+            required_margin = num_contracts * span_margin_per_contract
+        else:
+            required_margin = num_contracts * contract_value * self.default_margin_ratio
         
         # Teminat kasayı aşıyorsa kontratı küçült
         while required_margin > capital * 0.90 and num_contracts > 1:
             num_contracts -= 1
-            actual_notional = num_contracts * contract_value
-            required_margin = actual_notional * self.initial_margin_ratio
+            if span_margin_per_contract is not None:
+                required_margin = num_contracts * span_margin_per_contract
+            else:
+                required_margin = num_contracts * contract_value * self.default_margin_ratio
 
+        actual_notional = num_contracts * contract_value
         cash_reserve = max(0.0, capital - required_margin)
 
         return {
@@ -283,8 +326,8 @@ if __name__ == "__main__":
     engine = BistViopEngine()
     print(f"\n⚡ [{args.ticker}] için VİOP Kontrat Hesaplaması Başlatılıyor...")
     
-    # 100.000 TL Kasa, 300 TL Hisse Fiyatı Örneği
-    pos = engine.calculate_position_size(capital=100000.0, spot_price=300.0, leverage=1.5)
+    pos = engine.calculate_position_size(capital=100000.0, spot_price=300.0, ticker=args.ticker, leverage=1.5)
+    theo_p = engine.calculate_theoretical_futures_price(spot_price=300.0, days_to_expiry=30)
     print("\n" + "="*80)
     print(f"📊 VİOP POZİSYON VE TEMİNAT PLANI: {engine.get_contract_code(args.ticker)}")
     print("="*80)

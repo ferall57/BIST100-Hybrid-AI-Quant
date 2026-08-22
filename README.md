@@ -61,19 +61,21 @@ graph TD
 
 ---
 
-### 🔹 Çekirdek 1: Kronos-Base Quant Model (PyTorch)
+### 🔹 Çekirdek 1: Kronos-Base Quant Model (PyTorch & Candlestick Sanitizer)
 * **102.3 Milyon parametreli** Transformer tabanlı finansal zaman serisi tahmin modelidir.
-* Geçmiş 256 günlük mum grafiğini alarak **1 Haftalık (Kısa Vade)** ve **15-30 Günlük (Orta Vade)** çift vadeli matematiksel projeksiyonunu (Destek, Direnç, Beklenen Getiri) hesaplar ve görsel dark-mode projeksiyon grafiği çizer.
+* **Candlestick Physical Consistency & Circuit Breaker Filter:** Modelin ürettiği her mum için fiziksel $High \ge \max(Open, Close)$ ve $Low \le \min(Open, Close)$ tutarlılığı garantilenir ve BIST ±%10 günlük tavan/taban devre kesici limitleri denetlenir.
+* Geçmiş 256 günlük mum grafiğini alarak **1 Haftalık (Kısa Vade)** ve **15-30 Günlük (Orta Vade)** çoklu Monte Carlo çıkarım yolları (`Multi-path inference`) üzerinden destek, direnç ve beklenen getiri projeksiyonunu hesaplar.
 * `holidays` entegrasyonu sayesinde Türkiye'nin resmi ve dini tatil günlerini otomatik algılayıp projeksiyondan atlar.
 
-### 🔹 Çekirdek 2: Klasik Ekonometri & 1.000 Yollu Monte Carlo Motoru
+### 🔹 Çekirdek 2: Klasik Ekonometri, GARCH(1,1) & Merton Jump Diffusion Motoru
 * **Augmented Dickey-Fuller (ADF) Durağanlık Testi:** Serinin birim kök ve trend karakterini *p*-değeri ile matematiksel olarak ispatlar.
-* **Mevsimsellik (Seasonality):** Günlük/haftalık getiri varyansını ve anomali günlerini ölçer.
-* **Parkinson High-Low Volatilitesi:** Gün içi oynaklık dalga boyunu ölçerek volatilite rejimini (Düşük / Normal / Yüksek Risk) belirler.
-* **1.000 Yollu Monte Carlo Stokastik Simülasyonu:** Geometrik Brown Hareketi (GBM) ile rastgele 1.000 fiyat patikası türetir; **Kazanma Olasılığı (Win Rate %)** ve **Parametrik Riske Maruz Değer (VaR %95)** hesaplar.
+* **GARCH(1,1) Koşullu Varyans Modellemesi:** Zamana bağlı volatilite kümelenmesini (volatility clustering) hesaplar ve simülasyon adımlarına değişken varyans olarak aktarır.
+* **Merton Jump Diffusion (Poisson Sıçramalı Şişman Kuyruk):** Standart normal dağılım yerine BIST'in ani haber şoklarını $dN_t \sim \text{Poisson}(\lambda)$ sıçrama prosesi ile modelleyerek şişman kuyruk (fat-tail) riskini tam yansıtır.
+* **Expected Shortfall (CVaR %95) & Parametrik VaR:** Olası kriz senaryolarındaki ortalama kuyruk kaybını ve maksimum riske maruz değeri hesaplar.
 
-### 🔹 Çekirdek 3: TradingAgents Çoklu Yapay Zeka Komitesi & XAI
-* **3'lü Gemini API Rotasyon Motoru:** 429 kota veya hız sınırına takılmadan anahtarlar arasında dinamik ve kesintisiz geçiş yapar.
+### 🔹 Çekirdek 3: TradingAgents Çoklu Yapay Zeka Komitesi & Deterministik Hard-Gate
+* **3'lü Gemini API Rotasyon Motoru:** 429 kota veya hız sınırına takılmadan anahtarlar arasında dinamik ve kesintisiz geçiş yapar (`gemini-3.5-flash`).
+* **Deterministik Hard-Gate Veto Kalkanı:** LLM'in doğal yükseliş yanlılığına (Bullish Bias) karşı programatik koruma devrededir. Monte Carlo kazanma olasılığı <%38 ve CMF para çıkışı varsa, modelin "AL" kararı otomatik olarak "TUT / GÖZLEMLE" statüsüne veto edilir.
 * **Boğa vs. Ayı Çatışması (Debate Protocol):** Boğa analisti yükseliş katalizörlerini savunurken, Ayı analisti değer tuzaklarını ve riskleri acımasızca sorgular.
 * **Açıklanabilir Yapay Zeka (XAI):** Nihai yatırım kararının hangi faktörlere dayandığını yüzdesel ağırlıklarla gerekçelendirir.
 
@@ -83,30 +85,31 @@ graph TD
   2. **2. Aşama (Derin Komite Analizi):** En yüksek potansiyelli ilk **Top N** hisse seçilerek tam yapay zeka komite tartışmasından geçirilir.
 * Tarama bitiminde konsolide bir **BIST Keşif Bülteni** (`outputs/reports/BIST_SCANNER_...md`) üretilir.
 
-### 🔹 Çekirdek 5: Walk-Forward Backtesting & Finansal Doğrulama Motoru
+### 🔹 Çekirdek 5: Walk-Forward Backtesting & VİOP Rollover Motoru
 * **Zaman Sızıntısız (Lookahead-Free) Rolling Window:** Model her adımda sadece o günün gerisindeki mumları görerek geçmiş periyotta işlem açar.
+* **2 Aylık VİOP Vade Sonu & Rollover Sürtünmesi:** Şubat, Nisan, Haziran, Ağustos, Ekim, Aralık vade sonu takvimine göre pozisyon taşınırken %0.15 rollover ve komisyon sürtünmesi yansıtılır.
 * **Dinamik Risk Yönetimi & İz Süren Stop:** Volatiliteye duyarlı ATR stop-loss ve trend sürme (Trailing Stop) ile kârı sonuna kadar koşturur.
 * **Wall Street Performans Metrikleri:** Sharpe Oranı, Sortino Oranı, **Kazanma Oranı (Win Rate %)**, **Kâr Faktörü (Profit Factor)**, **Maksimum Çekilme (MDD %)** ve **Alpha (α)**.
-* **Görsel Sermaye Eğrisi (Equity Curve):** 100.000 TL başlangıç sermayesinin Al-Tut (Buy & Hold) karşısındaki büyüme eğrisini çizer.
 
-### 🔹 Çekirdek 6: Çok Modlu (Multi-Modal) NLP Haber & KAP Duyarlılık Füzyon Motoru
-* **Finansal NLP Duyarlılık Skorlaması:** Canlı KAP bildirimleri ve Google News TR akışını analiz edip `[-1.0, +1.0]` arasında sayısal duyarlılık skoru ve `[%0, %100]` etki şiddeti üretir.
-* **Pozitif / Negatif Katalizör Tespiti:** Ciro artırıcı dev ihaleler, bedelsiz sermaye, pay geri alımları veya ceza/fabrika durdurma krizlerini anında etiketler.
+### 🔹 Çekirdek 6: Doğrudan KAP REST Köprüsü & Çok Modlu NLP Haber Füzyonu
+* **Doğrudan KAP REST Entegrasyonu (`kap.gov.tr`):** Şirketlerin Kamuyu Aydınlatma Platformu'na gönderdiği resmi bildirimleri doğrudan REST API üzerinden çeker; fallback olarak Google News TR RSS akışını tarar.
+* **Finansal NLP Duyarlılık Skorlaması:** Bildirimleri analiz edip `[-1.0, +1.0]` arasında duyarlılık skoru ve `[%0, %100]` etki şiddeti üretir.
+* **Pozitif / Negatif Katalizör Tespiti:** Ciro artıran ihaleler, bedelsiz sermaye, pay geri alımı veya üretim durdurma krizlerini anında etiketler.
 * **Matematiksel Hibrit Füzyon Matrisi:**
   ```text
   R_fused = (1 - w_news) * R_tech + w_news * (S_news * I_impact * σ_volatility)
   ```
-* **Dinamik Eşik & Kârı Koşturma Stop Mesafesi:** Güçlü pozitif katalizörlü hisselerde teknik giriş barajını düşürür (`min_thresh` ↓) ve erken silkelenmeyi önlemek için İz Süren Stop mesafesini genişletir (`%4.0 -> %7.5`).
 
-### 🔹 Çekirdek 7: VİOP Çift Yönlü (Long/Short) Türev & Nemalandırma Motoru
-* **Çift Yönlü Kazanç (Bi-directional Alpha):** Yükseliş trendinde Kaldıraçlı Long, düşüş trendinde **Kaldıraçlı Short (Açığa Satış)** açarak ayı piyasalarından devasa kârlar üretir.
-* **Ters İz Süren Stop (Inverted Trailing Stop):** Short pozisyonda fiyat düştükçe kâr seviyesini kilitler, dipten ani tepki geldiğinde kârı cebe atar.
-* **Takasbank Nemalandırma Faizi:** Pozisyondayken veya nakitteyken portföye her gün gecelik Takasbank faizi (yıllık %45) tahakkuk ettirir.
+### 🔹 Çekirdek 7: VİOP Çift Yönlü Türev, Cost-of-Carry & SPAN Teminat Motoru
+* **Cost-of-Carry Teorik Vadeli Fiyatlama:** Taşıma maliyeti modeliyle vadeli teorik fiyatı hesaplar ($F_t = S_t [1 + (r_f - q) \frac{T-t}{365}]$).
+* **Takasbank SPAN Maktu Teminat Matrisi:** BIST 30 hisseleri için Takasbank maktu teminat tutarlarını (THYAO: 6.200 TL, ISCTR: 272 TL vb.) baz alarak kesin marjin hesaplar.
+* **Çift Yönlü Kazanç (Bi-directional Alpha):** Kaldıraçlı Long ve Kaldıraçlı Short pozisyonlarıyla her piyasa koşulunda getiri üretir.
+* **Takasbank Nemalandırma Faizi:** Boştaki nakit rezervine gecelik Takasbank faizi (yıllık %45) tahakkuk ettirir.
 
-### 🔹 Çekirdek 8: Takasbank & AKD (Aracı Kurum Dağılımı) Para Giriş/Çıkış Radarı
+### 🔹 Çekirdek 8: Takasbank & AKD Para Akışı & Doğrudan Terminal Köprüsü
+* **Doğrudan Terminal CSV Köprüsü:** Matriks / İdealData üzerinden dışa aktarılan gerçek kurum dağılım dosyalarını (`bist_data/akd/<SEMBOL>_akd.csv`) doğrudan okur.
 * **Chaikin Para Akışı (CMF - 20G) & MFI (14G):** Hacim ağırlıklı nakit akışını ölçerek para girişi ve çıkışını matematiksel olarak tespit eder.
-* **İlk 5 Kurum Konsantrasyon Dengesi:** İlk 5 alıcı aracı kurum ile ilk 5 satıcı aracı kurum arasındaki net güç farkını (`% Top 5 Alıcı - % Top 5 Satıcı`) hesaplar.
-* **Kurumsal Balina (Whale) Takibi:** Bank of America (BofA), QNB Finansinvest, İş Yatırım ve Garanti BBVA gibi piyasa yapıcı aktörlerin sessiz akümülasyon (toplama) veya mal dağıtımı (dağıtım tuzağı) yaptığını tespit eder.
+* **İlk 5 Kurum Konsantrasyon Dengesi & Balina Skoru:** Bank of America (BofA), QNB Finansinvest, İş Yatırım ve Garanti BBVA gibi piyasa yapıcı aktörlerin sessiz akümülasyon veya dağıtım hareketlerini puanlar.
 * **Hacim Ağırlıklı Ortalama Fiyat (VWAP) Sapması:** Anlık fiyatın 20 günlük kurumsal maliyetlenme seviyesine (VWAP) göre iskontosunu analiz eder.
 
 ---

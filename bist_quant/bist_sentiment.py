@@ -60,42 +60,23 @@ class BistSentimentEngine:
             "pazar payı kaybı": -0.7, "borç yapılandırması": -0.75
         }
 
+        self.retail_brokers = []
+        from bist_quant.bist_kap_crawler import BistKapCrawler
+        self.kap_crawler = BistKapCrawler()
+
     def fetch_live_news(self, ticker: str, limit: int = 25) -> list[dict]:
         """
-        Google News TR ve KAP RSS akışlarından belirtilen hisse için en güncel haberleri çeker.
+        KAP Doğrudan Bildirimleri ve Google News TR akışından hisse için en güncel haberleri çeker.
         """
-        clean_ticker = ticker.replace(".IS", "").strip().upper()
-        query = f'{clean_ticker} KAP OR {clean_ticker} hisse OR {clean_ticker} borsa'
-        safe_query = urllib.parse.quote(query)
-        url = f'https://news.google.com/rss/search?q={safe_query}&hl=tr&gl=TR&ceid=TR:tr'
-
+        raw_disclosures = self.kap_crawler.fetch_disclosures_direct(ticker, max_items=limit)
         news_items = []
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-
-            root = ET.fromstring(xml_data)
-            items = root.findall('./channel/item')
-
-            for item in items[:limit]:
-                title = item.find('title').text if item.find('title') is not None else ""
-                pubDate = item.find('pubDate').text if item.find('pubDate') is not None else ""
-                link = item.find('link').text if item.find('link') is not None else ""
-                source_elem = item.find('source')
-                source = source_elem.text if source_elem is not None else "Google News TR"
-
-                if title:
-                    title = title.replace("&#39;", "'").replace("&quot;", '"').replace("&amp;", '&')
-                    news_items.append({
-                        "title": title,
-                        "pub_date": pubDate,
-                        "link": link,
-                        "source": source
-                    })
-        except Exception as e:
-            print(f"[UYARI] {ticker} canlı haber akışı çekilirken hata: {e}")
-
+        for item in raw_disclosures:
+            news_items.append({
+                "title": item["title"],
+                "pub_date": item.get("published", ""),
+                "link": "",
+                "source": item.get("source", "KAP & Finans")
+            })
         return news_items
 
     def analyze_sentiment(self, ticker: str, news_items: list[dict] = None) -> dict:

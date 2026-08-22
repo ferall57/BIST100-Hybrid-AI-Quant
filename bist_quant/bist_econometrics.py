@@ -171,10 +171,32 @@ class BistEconometrics:
                 "volatility_regime": "Normal Oynaklık"
             }
 
+    def _estimate_garch_volatilities(self, log_returns: pd.Series, days: int) -> np.ndarray:
+        """
+        GARCH(1,1) koşullu varyans projeksiyonunu hesaplar.
+        sigma_t^2 = V_L + (alpha + beta)^t * (sigma_0^2 - V_L)
+        """
+        try:
+            var_uncond = float(log_returns.var())
+            sigma_0_sq = float(log_returns.tail(10).var())
+            # BIST piyasası tipik GARCH katsayıları
+            alpha = 0.12
+            beta = 0.83
+            persistence = alpha + beta
+            
+            sigmas = []
+            for t in range(1, days + 1):
+                cond_var = var_uncond + (persistence ** t) * (sigma_0_sq - var_uncond)
+                sigmas.append(np.sqrt(max(1e-6, cond_var)))
+            return np.array(sigmas)
+        except Exception:
+            daily_std = float(log_returns.std())
+            return np.full(days, daily_std)
+
     def run_monte_carlo_simulation(self, df: pd.DataFrame, days: int = 15, num_sims: int = 1000) -> dict:
         """
-        Geometrik Brown Hareketi (Geometric Brownian Motion - GBM) kullanarak
-        1.000 bağımsız stokastik fiyat yolu simüle eder ve olasılık dağılımı üretir.
+        Merton Jump Diffusion (Poisson Sıçramaları & Şişman Kuyruk) ve GARCH(1,1) Dinamik Volatilitesi
+        kullanarak 1.000 bağımsız stokastik fiyat yolu simüle eder ve olasılık dağılımı üretir.
         """
         try:
             close_series = df["close"].dropna()
@@ -185,26 +207,39 @@ class BistEconometrics:
             log_returns = np.log(close_series.tail(window) / close_series.tail(window).shift(1)).dropna()
             
             mu_daily = float(log_returns.mean()) # Günlük ortalama sürüklenme (drift)
-            sigma_daily = float(log_returns.std()) # Günlük standart sapma (volatility)
             
-            # Günlük adımlar: dt = 1 gün
-            dt = 1.0
+            # GARCH(1,1) Dinamik Günlük Volatilite Vektörü (Boyut: days)
+            daily_garch_sigmas = self._estimate_garch_volatilities(log_returns, days)
             
-            # 1.000 simülasyon yolu için rastgele standart normal şoklar üret
+            # ⚡ MERTON JUMP DIFFUSION PARAMETRELERİ (Şişman Kuyruk & BIST Şokları)
+            lambda_daily = 2.0 / 252.0  # Yılda ortalama 2 büyük KAP/Makro sıçrama şoku
+            mu_jump = -0.015           # Şokların asimetrik ortalama negatif etkisi (%-1.5)
+            sigma_jump = 0.045          # Şokun standart sapması (%4.5)
+            k_jump = np.exp(mu_jump + 0.5 * (sigma_jump ** 2)) - 1.0 # Beklenen oransal sıçrama
+            
             np.random.seed(self.seed)
-            # Boyut: (days, num_sims)
-            shocks = np.random.normal(0, 1, (days, num_sims))
-            
-            # GBM Formülü: S(t+1) = S(t) * exp((mu - 0.5*sigma^2)*dt + sigma*sqrt(dt)*Z)
-            drift = (mu_daily - 0.5 * (sigma_daily ** 2)) * dt
-            diffusion = sigma_daily * np.sqrt(dt) * shocks
-            step_factors = np.exp(drift + diffusion)
-            
-            # Kümülatif fiyat yolları
             price_paths = np.zeros((days + 1, num_sims))
             price_paths[0] = current_price
+
             for t in range(1, days + 1):
-                price_paths[t] = price_paths[t - 1] * step_factors[t - 1]
+                sigma_t = daily_garch_sigmas[t - 1]
+                
+                # 1. Standart Gauss Piyasa Gürültüsü
+                z = np.random.normal(0, 1, num_sims)
+                
+                # 2. Poisson Sıçrama Süreci (Kriz / Tavan / Taban Şokları)
+                num_jumps = np.random.poisson(lambda_daily, num_sims)
+                jump_shocks = np.zeros(num_sims)
+                for i in range(num_sims):
+                    if num_jumps[i] > 0:
+                        jump_shocks[i] = np.sum(np.random.normal(mu_jump, sigma_jump, num_jumps[i]))
+
+                # Merton SDE Formülü: S(t) = S(t-1) * exp((mu - lambda*k - 0.5*sigma^2) + sigma*Z + Jump)
+                drift_t = mu_daily - (lambda_daily * k_jump) - (0.5 * (sigma_t ** 2))
+                diffusion_t = sigma_t * z
+                total_return = np.exp(drift_t + diffusion_t + jump_shocks)
+                
+                price_paths[t] = price_paths[t - 1] * total_return
                 
             # 1. 1-Haftalık (5. Gün / Kısa Vade) Fiyat Dağılımı
             idx_5d = min(5, days)
@@ -214,6 +249,10 @@ class BistEconometrics:
             ci_95_u_5d = float(np.percentile(prices_5d, 95))
             prob_pos_5d = float((np.sum(prices_5d > current_price) / num_sims) * 100.0)
             var_95_5d = float(((current_price - ci_95_l_5d) / current_price) * 100.0)
+            
+            # Expected Shortfall (CVaR %95): %5'lik en kötü kuyruktaki ortalama kayıp
+            tail_5d = prices_5d[prices_5d <= ci_95_l_5d]
+            cvar_95_5d = float(((current_price - np.mean(tail_5d)) / current_price) * 100.0) if len(tail_5d) > 0 else var_95_5d
             ret_5d_pct = float(((median_5d - current_price) / current_price) * 100.0)
 
             # 2. Orta Vadeli (N Günlük) Fiyat Dağılımı
@@ -225,13 +264,15 @@ class BistEconometrics:
             pct_1 = float(np.percentile(final_prices, 1))   # %99 VaR alt sınırı
             pct_99 = float(np.percentile(final_prices, 99)) # %99 Üst sınır
             
-            # Yükseliş olasılığı: Kaç simülasyonda nihai fiyat başlangıçtan yüksek?
             positive_paths = np.sum(final_prices > current_price)
             prob_positive = float((positive_paths / num_sims) * 100.0)
             
-            # Parametrik Value-at-Risk (VaR)
             var_95_pct = float(((current_price - pct_5) / current_price) * 100.0)
             var_99_pct = float(((current_price - pct_1) / current_price) * 100.0)
+            
+            tail_final = final_prices[final_prices <= pct_5]
+            cvar_95_pct = float(((current_price - np.mean(tail_final)) / current_price) * 100.0) if len(tail_final) > 0 else var_95_pct
+            
             expected_mc_return = float(((median_price - current_price) / current_price) * 100.0)
 
             return {
@@ -243,6 +284,7 @@ class BistEconometrics:
                 "ci_95_upper_5d": ci_95_u_5d,
                 "prob_positive_5d": prob_pos_5d,
                 "var_95_5d": var_95_5d,
+                "cvar_95_5d": cvar_95_5d,
                 # Orta Vade (N Gün)
                 "median_target": median_price,
                 "mean_target": mean_price,
@@ -254,6 +296,8 @@ class BistEconometrics:
                 "prob_positive": prob_positive,
                 "var_95_pct": var_95_pct,
                 "var_99_pct": var_99_pct,
+                "cvar_95_pct": cvar_95_pct,
+                "model_engine": "Merton Jump Diffusion + GARCH(1,1)",
                 "num_simulations": num_sims
             }
         except Exception as e:
@@ -265,6 +309,7 @@ class BistEconometrics:
                 "ci_95_upper_5d": 0.0,
                 "prob_positive_5d": 50.0,
                 "var_95_5d": 3.0,
+                "cvar_95_5d": 4.5,
                 "median_target": 0.0,
                 "mean_target": 0.0,
                 "expected_return_pct": 0.0,
@@ -275,6 +320,7 @@ class BistEconometrics:
                 "prob_positive": 50.0,
                 "var_95_pct": 5.0,
                 "var_99_pct": 8.0,
+                "cvar_95_pct": 7.0,
                 "num_simulations": num_sims,
                 "error": str(e)
             }
@@ -297,19 +343,20 @@ class BistEconometrics:
         stat_badge = "✅ Trend Doğrulandı (I(1))" if not stat_res.get("price_is_stationary", False) else "🔄 Ortalamaya Dönen (Mean-Reverting)"
 
         report = f"""### 🔬 Klasik Ekonometri & Stokastik Simülasyon Raporu ({ticker})
+* **Stokastik Motor Modeli:** **Merton Jump Diffusion (Şişman Kuyruk Sıçramaları) + GARCH(1,1) Dinamik Volatilite**
 
 | Ekonometrik Gösterge / Test | Test Değeri / Sonuç | Finansal & Matematiksel Yorum |
 | :--- | :--- | :--- |
 | **Durağanlık (ADF Testi)** | Test İstatistiği: {stat_res.get('price_stat', 0.0):.3f} (p={stat_res.get('price_pvalue', 1.0):.4f}) | {stat_badge} |
 | **Log-Getiri Durağanlığı** | p={stat_res.get('return_pvalue', 0.0):.4e} | Getiri serisi durağandır, rastgele yürüyüş (random walk) modeli geçerlidir. |
 | **Tarihsel Volatilite (60G)** | %{vol_res.get('hist_volatility', 0.0):.2f} (Yıllık) | Rejim: **{vol_res.get('volatility_regime', 'Normal')}** |
-| **Parkinson Volatilitesi** | %{vol_res.get('parkinson_volatility', 0.0):.2f} (High-Low) | Gün içi oynaklık dalga boyu |
+| **GARCH(1,1) Dinamik Oynaklık** | Koşullu Varyans Projeksiyonu | Zamanla kümelenen dalga boyu simülasyon adımlarına entegre edildi. |
 | **Mevsimsellik Gücü** | {seas_res.get('seasonal_strength', 'Nötr')} | En Güçlü Gün: **{seas_res.get('best_day', 'N/A')}** (%{seas_res.get('best_day_ret', 0.0):+.2f}), En Zayıf: **{seas_res.get('worst_day', 'N/A')}** (%{seas_res.get('worst_day_ret', 0.0):+.2f}) |
-| **1 Haftalık Monte Carlo (5G)**| **{mc_res['median_5d']:.2f} TRY** (Getiri: **%{mc_res['expected_return_5d_pct']:+.2f}**) | %95 Güven: **[{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY]**, Kazanma: **%{mc_res['prob_positive_5d']:.1f}**, 5G VaR: **-%{mc_res['var_95_5d']:.2f}** |
-| **Orta Vadeli Monte Carlo ({forecast_days}G)**| **{med_t:.2f} TRY** (Getiri: **%{ret_pct:+.2f}**) | %95 Güven: **[{ci_95_l:.2f} - {ci_95_u:.2f} TRY]**, Kazanma: **%{prob_pos:.1f}**, {forecast_days}G VaR: **-%{var_95:.2f}** |
+| **1 Haftalık Merton MC (5G)**| **{mc_res['median_5d']:.2f} TRY** (Getiri: **%{mc_res['expected_return_5d_pct']:+.2f}**) | %95 Güven: **[{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY]**, Kazanma: **%{mc_res['prob_positive_5d']:.1f}**, 5G VaR: **-%{mc_res['var_95_5d']:.2f}** (CVaR: -%{mc_res['cvar_95_5d']:.2f}) |
+| **Orta Vadeli Merton MC ({forecast_days}G)**| **{med_t:.2f} TRY** (Getiri: **%{ret_pct:+.2f}**) | %95 Güven: **[{ci_95_l:.2f} - {ci_95_u:.2f} TRY]**, Kazanma: **%{prob_pos:.1f}**, {forecast_days}G VaR: **-%{var_95:.2f}** (CVaR: -%{mc_res['cvar_95_pct']:.2f}) |
 
 **Ekonometrik Sentez:**
-{stat_res.get('interpretation', '')} 1.000 yollu Monte Carlo stokastik simülasyonu; hissede **1 haftalık vadede** %{mc_res['prob_positive_5d']:.1f} kazanma olasılığıyla {mc_res['median_5d']:.2f} TRY (%{mc_res['expected_return_5d_pct']:+.2f}) medyan seviyesini [{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY bandı], **{forecast_days} günlük orta vadede** ise %{prob_pos:.1f} kazanma olasılığıyla {med_t:.2f} TRY (%{ret_pct:+.2f}) medyan seviyesini [{ci_95_l:.2f} - {ci_95_u:.2f} TRY bandı] işaret etmektedir.
+{stat_res.get('interpretation', '')} 1.000 yollu Merton Jump Diffusion (Poisson sıçramalı şişman kuyruk) simülasyonu; hissede **1 haftalık vadede** %{mc_res['prob_positive_5d']:.1f} kazanma olasılığıyla {mc_res['median_5d']:.2f} TRY (%{mc_res['expected_return_5d_pct']:+.2f}) medyan seviyesini [{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY bandı, %95 CVaR kuyruk riski: %{mc_res['cvar_95_5d']:.2f}], **{forecast_days} günlük orta vadede** ise %{prob_pos:.1f} kazanma olasılığıyla {med_t:.2f} TRY (%{ret_pct:+.2f}) medyan seviyesini [{ci_95_l:.2f} - {ci_95_u:.2f} TRY bandı, %95 CVaR kuyruk riski: %{mc_res['cvar_95_pct']:.2f}] işaret etmektedir.
 """
         return report
 

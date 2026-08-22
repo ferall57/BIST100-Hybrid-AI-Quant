@@ -128,6 +128,48 @@ class BistAkdFlowEngine:
             "flow_trend": flow_trend
         }
 
+    def _load_direct_akd_file(self, ticker: str) -> dict:
+        """
+        Matriks, İdealData veya Foreks terminallerinden aktarılan yerel AKD CSV dosyasını okur.
+        Dizin: bist_data/akd/<TICKER>_akd.csv
+        """
+        clean_t = ticker.replace(".IS", "").upper()
+        akd_dir = os.path.join(ROOT_DIR, "bist_data", "akd")
+        os.makedirs(akd_dir, exist_ok=True)
+        csv_file = os.path.join(akd_dir, f"{clean_t}_akd.csv")
+
+        if os.path.exists(csv_file):
+            try:
+                df_akd = pd.read_csv(csv_file)
+                # Standart AKD dosya yapısı: Kurum, NetLot, Yuzde
+                if "Kurum" in df_akd.columns and "NetLot" in df_akd.columns:
+                    buyers = df_akd[df_akd["NetLot"] > 0].sort_values(by="NetLot", ascending=False)
+                    sellers = df_akd[df_akd["NetLot"] < 0].sort_values(by="NetLot", ascending=True)
+                    
+                    top5_b_lots = buyers["NetLot"].head(5).sum()
+                    top5_s_lots = abs(sellers["NetLot"].head(5).sum())
+                    total_lots = top5_b_lots + top5_s_lots
+                    
+                    top5_buy_pct = (top5_b_lots / max(1.0, total_lots)) * 100.0
+                    top5_sell_pct = (top5_s_lots / max(1.0, total_lots)) * 100.0
+                    
+                    lead_b = ", ".join(buyers["Kurum"].head(2).tolist()) if len(buyers) > 0 else "N/A"
+                    lead_s = ", ".join(sellers["Kurum"].head(2).tolist()) if len(sellers) > 0 else "N/A"
+                    
+                    return {
+                        "is_real_feed": True,
+                        "top5_buy_pct": round(top5_buy_pct, 1),
+                        "top5_sell_pct": round(top5_sell_pct, 1),
+                        "net_concentration_pct": round(top5_buy_pct - top5_sell_pct, 1),
+                        "lead_buyer": lead_b,
+                        "lead_seller": lead_s,
+                        "feed_source": f"Gerçek AKD Dosyası ({csv_file})"
+                    }
+            except Exception as e:
+                print(f"[UYARI] Yerel AKD dosyası okunamadı: {e}")
+
+        return {"is_real_feed": False}
+
     def analyze_akd_profile(self, ticker: str, df: pd.DataFrame) -> dict:
         """
         Hisse senedi için Aracı Kurum Dağılımı (AKD), İlk 5 Kurum Konsantrasyon Dengesi
@@ -139,38 +181,52 @@ class BistAkdFlowEngine:
         vwap_delta = mf["vwap_delta_pct"]
         buying_p = mf["buying_pressure_pct"]
 
-        # Hacim ve fiyat dinamiğine göre kurum konsantrasyonu modellemesi:
-        # Eğer CMF pozitif ve fiyat VWAP üzerindeyse İlk 5 Alıcı yoğunluğu satıcılardan yüksektir.
-        base_top5_buy = 65.0 + (cmf * 25.0) + (vwap_delta * 1.5)
-        base_top5_buy = max(40.0, min(92.0, base_top5_buy))
+        direct_feed = self._load_direct_akd_file(ticker)
 
-        base_top5_sell = 100.0 - (base_top5_buy * 0.75)
-        base_top5_sell = max(35.0, min(88.0, base_top5_sell))
+        if direct_feed.get("is_real_feed"):
+            base_top5_buy = direct_feed["top5_buy_pct"]
+            base_top5_sell = direct_feed["top5_sell_pct"]
+            net_concentration = direct_feed["net_concentration_pct"]
+            lead_buyer = direct_feed["lead_buyer"]
+            lead_seller = direct_feed["lead_seller"]
+            buyer_intent = "Doğrulanmış Kurumsal Alım (Lisanslı AKD)"
+            seller_intent = "Doğrulanmış Kurumsal Satış (Lisanslı AKD)"
+            feed_label = direct_feed["feed_source"]
+        else:
+            base_top5_buy = 65.0 + (cmf * 25.0) + (vwap_delta * 1.5)
+            base_top5_buy = max(40.0, min(92.0, base_top5_buy))
 
-        net_concentration = base_top5_buy - base_top5_sell
+            base_top5_sell = 100.0 - (base_top5_buy * 0.75)
+            base_top5_sell = max(35.0, min(88.0, base_top5_sell))
+
+            net_concentration = base_top5_buy - base_top5_sell
+            feed_label = "Emir Akışı & CMF İstatistiksel Modellemesi"
+
+            if cmf > 0.10:
+                lead_buyer = "Bank of America & İş Yatırım (Model Öngörüsü)"
+                buyer_intent = "Kurumsal Akümülasyon (Sessiz Toplama)"
+                lead_seller = "Diğer / Perakende Satıcılar"
+                seller_intent = "Küçük Yatırımcı Kâr Realizasyonu"
+            elif cmf < -0.10:
+                lead_buyer = "Diğer / Perakende Alıcılar"
+                buyer_intent = "Düşen Bıçağı Tutma Çabası"
+                lead_seller = "Bank of America & QNB Finans (Model Öngörüsü)"
+                seller_intent = "Kurumsal Dağıtım (Mal Çıkışı / Distribution)"
+            else:
+                lead_buyer = "İş Yatırım & Garanti BBVA"
+                buyer_intent = "Dengeli Piyasa Yapıcı Alımı"
+                lead_seller = "Yapı Kredi & Diğerleri"
+                seller_intent = "Rutin Karşılıklı İşlemler"
 
         # Kurumsal Balina Skoru: [-1.0 ile +1.0]
         whale_score = (cmf * 0.4) + ((mfi - 50.0) / 50.0 * 0.3) + ((buying_p - 50.0) / 50.0 * 0.3)
         whale_score = max(-1.0, min(1.0, whale_score))
 
-        # Ana Alıcı / Satıcı Dağılım Tahmini
-        if whale_score > 0.25:
-            lead_buyer = "Bank of America & İş Yatırım"
-            buyer_intent = "Kurumsal Akümülasyon (Sessiz Toplama)"
-            lead_seller = "Diğer / Perakende Satıcılar"
-            seller_intent = "Küçük Yatırımcı Kâr Realizasyonu"
+        if whale_score > 0.20:
             status_badge = "🚀 GÜÇLÜ PARA GİRİŞİ (Whale Inflow)"
-        elif whale_score < -0.25:
-            lead_buyer = "Diğer / Perakende Alıcılar"
-            buyer_intent = "Düşen Bıçağı Tutma Çabası"
-            lead_seller = "Bank of America & QNB Finans"
-            seller_intent = "Kurumsal Dağıtım (Mal Çıkışı / Distribution)"
+        elif whale_score < -0.20:
             status_badge = "🔻 GÜÇLÜ PARA ÇIKIŞI (Whale Outflow)"
         else:
-            lead_buyer = "İş Yatırım & Garanti BBVA"
-            buyer_intent = "Dengeli Piyasa Yapıcı Alımı"
-            lead_seller = "Yapı Kredi & Diğerleri"
-            seller_intent = "Rutin Karşılıklı İşlemler"
             status_badge = "⚪ DENGELİ / NÖTR AKIŞ"
 
         return {
@@ -188,7 +244,8 @@ class BistAkdFlowEngine:
             "buyer_intent": buyer_intent,
             "lead_seller": lead_seller,
             "seller_intent": seller_intent,
-            "status_badge": status_badge
+            "status_badge": status_badge,
+            "feed_label": feed_label
         }
 
     def get_akd_summary_text(self, ticker: str, df: pd.DataFrame) -> str:
