@@ -7,18 +7,18 @@
 ![Gemini](https://img.shields.io/badge/Gemini-3.5_Flash-00a498.svg)
 ![Status](https://img.shields.io/badge/Status-Production_Ready-success.svg)
 
-Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber NLP Duyarlılık Füzyonu**, **VİOP Çift Yönlü (Long/Short) Türev Motoru** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
+Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber NLP Duyarlılık Füzyonu**, **VİOP Çift Yönlü (Long/Short) Türev Motoru**, **Takasbank & AKD Para Giriş/Çıkış Radarı** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
 
 ---
 
 ## 🚀 Proje Vizyonu
-Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci, klasik ekonometri (ADF durağanlık, mevsimsellik, volatilite rejimi), 1.000 yollu Monte Carlo stokastik simülasyonu, Walk-Forward geçmiş performans doğrulaması, canlı KAP haber duyarlılığı ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
+Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci, klasik ekonometri (ADF durağanlık, mevsimsellik, volatilite rejimi), 1.000 yollu Monte Carlo stokastik simülasyonu, Walk-Forward geçmiş performans doğrulaması, canlı KAP haber duyarlılığı, Takasbank & AKD kurumsal balina takibi ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
 
 ---
 
 ## 🧠 Sistem Mimarisi
 
-Sistem birbirine entegre çalışan **7 ana Çekirdek (Core)** üzerinden çalışır:
+Sistem birbirine entegre çalışan **8 ana Çekirdek (Core)** üzerinden çalışır:
 
 ```mermaid
 graph TD
@@ -27,9 +27,11 @@ graph TD
     A --> C[Canlı KAP & Google News RSS]
     A --> F[Bilanço Rasyoları: F/K, PD/DD, ROE]
     A --> G[Canlı Makro: XU100, USD/TRY]
+    A --> AKD(Çekirdek 8: Takasbank & AKD Para Akışı Radarı)
     
     C --> NLP(Çekirdek 6: NLP Haber & KAP Duyarlılık Füzyonu)
     NLP --> D(Çekirdek 3: TradingAgents Komitesi)
+    AKD -->|BofA/İş Yatırım Dengesi, CMF, MFI, VWAP| D
     B -->|1H & 15-30G Mum Projeksiyonu| D
     E_CON -->|ADF Testi, Parkinson Volatilite, VaR, Monte Carlo| D
     F -->|Temel Finansal Çarpanlar| D
@@ -37,7 +39,7 @@ graph TD
     
     subgraph Committee [Yapay Zeka Komitesi - Gemini 3'lü Rotator]
     D1[Temel Analist]
-    D2[Teknik & Ekonometri Analisti]
+    D2[Teknik, AKD & Ekonometri Analisti]
     D3[Boğa Araştırmacısı]
     D4[Ayı Araştırmacısı]
     D1 --> D5{Baş Portföy Müdürü}
@@ -68,15 +70,14 @@ graph TD
 * **Augmented Dickey-Fuller (ADF) Durağanlık Testi:** Serinin birim kök ve trend karakterini *p*-değeri ile matematiksel olarak ispatlar.
 * **Mevsimsellik (Seasonality):** Günlük/haftalık getiri varyansını ve anomali günlerini ölçer.
 * **Parkinson High-Low Volatilitesi:** Gün içi oynaklık dalga boyunu ölçerek volatilite rejimini (Düşük / Normal / Yüksek Risk) belirler.
-* **1.000 Yollu Geometrik Brown Hareketi (GBM):** 1.000 bağımsız stokastik simülasyon ile hem 1 haftalık hem orta vadeli medyan getiri, **%95 Güven Aralığı Bandı**, **Yükseliş Olasılığı (Win Rate %)** ve **Parametrik VaR (%95)** hesaplar.
+* **1.000 Yollu Monte Carlo Stokastik Simülasyonu:** Geometrik Brown Hareketi (GBM) ile rastgele 1.000 fiyat patikası türetir; **Kazanma Olasılığı (Win Rate %)** ve **Parametrik Riske Maruz Değer (VaR %95)** hesaplar.
 
-### 🔹 Çekirdek 3: Multi-Agent Tartışma Komitesi & XAI (Gemini API Rotator)
-* **Bilanço & Değerleme Rasyoları:** F/K, İleri F/K, PD/DD, FD/FAVÖK, ROE, Temettü Verimi ve 52 Haftalık Zirve/Dip marjları otomatik çekilip analiz edilir.
-* **Canlı KAP & Haber RSS Akışı:** Google News TR ve KAP altyapısına doğrudan XML/RSS ile bağlanarak en taze 25 haberi çeker.
-* **Açıklanabilir Yapay Zeka (Explainable AI - XAI):** Karara etki eden faktörlerin ağırlık dağılımı (% Bilanço İskontosu, % Risk/Ödül, % Quant/Monte Carlo Getirisi, % KAP Katalizörü) şeffaf şekilde raporlanır.
-* **3'lü Gemini Akıllı Rotasyon Motoru:** Kota sınırlarını (Rate Limit / 429) ve 503 sunucu yoğunluklarını önlemek için akıllı bekleme (backoff) ile kesintisiz geçiş yapar.
+### 🔹 Çekirdek 3: TradingAgents Çoklu Yapay Zeka Komitesi & XAI
+* **3'lü Gemini API Rotasyon Motoru:** 429 kota veya hız sınırına takılmadan anahtarlar arasında dinamik ve kesintisiz geçiş yapar.
+* **Boğa vs. Ayı Çatışması (Debate Protocol):** Boğa analisti yükseliş katalizörlerini savunurken, Ayı analisti değer tuzaklarını ve riskleri acımasızca sorgular.
+* **Açıklanabilir Yapay Zeka (XAI):** Nihai yatırım kararının hangi faktörlere dayandığını yüzdesel ağırlıklarla gerekçelendirir.
 
-### 🔹 Çekirdek 4: BIST 30 / 100 Otomatik Tarama Motoru (Screener)
+### 🔹 Çekirdek 4: BIST Otomatik Tarama ve Keşif Motoru (Screener)
 * **2 Aşamalı Hibrit Tarama (2-Stage Funnel):**
   1. **1. Aşama (Hızlı Ön Eleme):** Tüm evrendeki hisseler saniyeler içinde taranır; 1H ve 15G Quant getiri potansiyeli, 52 haftalık zirveye iskonto ve hacim artışına göre puanlanarak sıralanır.
   2. **2. Aşama (Derin Komite Analizi):** En yüksek potansiyelli ilk **Top N** hisse seçilerek tam yapay zeka komite tartışmasından geçirilir.
@@ -101,6 +102,12 @@ graph TD
 * **Çift Yönlü Kazanç (Bi-directional Alpha):** Yükseliş trendinde Kaldıraçlı Long, düşüş trendinde **Kaldıraçlı Short (Açığa Satış)** açarak ayı piyasalarından devasa kârlar üretir.
 * **Ters İz Süren Stop (Inverted Trailing Stop):** Short pozisyonda fiyat düştükçe kâr seviyesini kilitler, dipten ani tepki geldiğinde kârı cebe atar.
 * **Takasbank Nemalandırma Faizi:** Pozisyondayken veya nakitteyken portföye her gün gecelik Takasbank faizi (yıllık %45) tahakkuk ettirir.
+
+### 🔹 Çekirdek 8: Takasbank & AKD (Aracı Kurum Dağılımı) Para Giriş/Çıkış Radarı
+* **Chaikin Para Akışı (CMF - 20G) & MFI (14G):** Hacim ağırlıklı nakit akışını ölçerek para girişi ve çıkışını matematiksel olarak tespit eder.
+* **İlk 5 Kurum Konsantrasyon Dengesi:** İlk 5 alıcı aracı kurum ile ilk 5 satıcı aracı kurum arasındaki net güç farkını (`% Top 5 Alıcı - % Top 5 Satıcı`) hesaplar.
+* **Kurumsal Balina (Whale) Takibi:** Bank of America (BofA), QNB Finansinvest, İş Yatırım ve Garanti BBVA gibi piyasa yapıcı aktörlerin sessiz akümülasyon (toplama) veya mal dağıtımı (dağıtım tuzağı) yaptığını tespit eder.
+* **Hacim Ağırlıklı Ortalama Fiyat (VWAP) Sapması:** Anlık fiyatın 20 günlük kurumsal maliyetlenme seviyesine (VWAP) göre iskontosunu analiz eder.
 
 ---
 
@@ -145,19 +152,29 @@ GOOGLE_API_KEY_3=AIzaSy...
 
 ## ⚡ Kullanım Komutları
 
-### 1. Tekil Hisse Derin Analizi (Çift Vade: 1H & 15G)
+### 1. Tekil Hisse Derin Komite Analizi (Quant + VİOP + AKD + Ekonometri)
 ```bash
-python main.py --analyze ISCTR.IS --model gemini-2.5-flash
+python main.py --analyze ISCTR.IS --days 15
 ```
 
-### 2. Canlı KAP ve Haber NLP Duyarlılık & Füzyon Karnesi
+### 2. Takasbank & AKD Para Giriş/Çıkış Radarı
+```bash
+# Tek bir hissenin AKD ilk 5 kurum dengesi, CMF ve kurumsal balina skorunu göster
+python main.py --akd ISCTR.IS
+python main.py --akd ASELS.IS
+
+# BIST 30 genelini kurumsal para girişine göre tara ve sırala
+python main.py --akd-scan bist30 --top 15
+```
+
+### 3. Canlı KAP ve Haber NLP Duyarlılık & Füzyon Karnesi
 ```bash
 # Tek komutla hissenin anlık KAP haber duyarlılığını ve katalizörlerini puanla
 python main.py --sentiment ASELS.IS
 python main.py --sentiment FROTO.IS
 ```
 
-### 3. VİOP Çift Yönlü (Long/Short) Sinyal Taraması & Backtest
+### 4. VİOP Çift Yönlü (Long/Short) Sinyal Taraması & Backtest
 ```bash
 # BIST 30 için günün Canlı Long ve Short kontrat fırsatlarını listele
 python main.py --viop-signals --top 10

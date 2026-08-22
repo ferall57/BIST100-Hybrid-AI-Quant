@@ -15,6 +15,7 @@ from hybrid_agents.prompts import (
 from bist_quant.bist_econometrics import BistEconometrics
 from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
+from bist_quant.bist_akd_flow import BistAkdFlowEngine
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -40,6 +41,7 @@ class BistHybridCommittee:
         self.econometric_engine = BistEconometrics()
         self.sentiment_engine = BistSentimentEngine(gemini_model=gemini_model, temperature=0.2)
         self.viop_engine = BistViopEngine()
+        self.akd_engine = BistAkdFlowEngine()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -175,6 +177,7 @@ class BistHybridCommittee:
         current_price = 0.0
         recent_history = "Veri okunamadı"
         econometric_report = "Ekonometrik veri hazır değil."
+        akd_report = "AKD ve Para Akışı verisi hazır değil."
         
         if os.path.exists(raw_csv):
             df = pd.read_csv(raw_csv)
@@ -184,6 +187,10 @@ class BistHybridCommittee:
                 econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
             except Exception as ee:
                 econometric_report = f"Ekonometrik analiz hatası: {ee}"
+            try:
+                akd_report = self.akd_engine.get_akd_summary_text(ticker, df)
+            except Exception as e_akd:
+                akd_report = f"AKD para akışı analiz hatası: {e_akd}"
             
         # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
         print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
@@ -200,8 +207,8 @@ class BistHybridCommittee:
                     return res.content
             return str(res)
 
-        # 2. Aşama: Analistler (Temel, NLP Sentiment & Teknik-Makro)
-        print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
+        # 2. Aşama: Analistler (Temel, NLP Sentiment, AKD & Teknik-Makro)
+        print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment, AKD Para Akışı ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
         
         # 2.1 Canlı NLP KAP ve Haber Duyarlılık Analizi
         print(f"🌍 [CANLI BAĞLANTI] {ticker} için Canlı KAP ve Finans Haberleri NLP ile skorlanıyor...")
@@ -234,6 +241,7 @@ class BistHybridCommittee:
             current_price=current_price,
             recent_history=recent_history,
             macro_indicators=macro_indicators,
+            akd_report=akd_report,
             econometric_report=econometric_report,
             kronos_report=kronos_report
         )
@@ -280,7 +288,7 @@ class BistHybridCommittee:
         # 6. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + VİOP Türev Motoru + Gemini Rotational Multi-Agent Debate
+**Aktif Model:** Kronos-Base Quant + Klasik Ekonometri & Monte Carlo + VİOP Türev Motoru + Takasbank AKD Radarı + Gemini Rotational Multi-Agent Debate
 
 ---
 
@@ -294,6 +302,10 @@ class BistHybridCommittee:
 * **100.000 TL Kasa İçin Pozisyon:** {viop_pos['contracts']} Kontrat ({viop_pos['contracts']*100} Pay) | **Toplam Notional Değer:** {viop_pos['notional_value']:,.2f} TRY (Efektif Kaldıraç: {viop_pos['effective_leverage']}x)
 * **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi gecelik yıllık ~%45 bileşik faiz getirisi üretir.
 * **Ters / İz Süren Stop:** Long pozisyonlar için zirveden %4.5 aşağı, Short pozisyonlar için dipten %4.5 yukarı tepkide kâr koruma kalkanı devrededir.
+
+---
+
+{akd_report}
 
 ---
 

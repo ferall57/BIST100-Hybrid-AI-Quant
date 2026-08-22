@@ -26,6 +26,7 @@ from bist_quant.bist_scanner import BistScanner
 from bist_quant.bist_backtester import BistBacktester
 from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
+from bist_quant.bist_akd_flow import BistAkdFlowEngine
 
 def banner():
     print("""
@@ -39,6 +40,7 @@ def banner():
  [*] Cekirdek 5 : Walk-Forward Backtesting & Finansal Performans Doğrulama Motoru
  [*] Cekirdek 6 : Cok Modlu (Multi-Modal) NLP Haber & KAP Duyarlilik Fuzyon Motoru
  [*] Cekirdek 7 : VIOP Cift Yonlu (Long/Short) Turev & Nemalandirma Motoru
+ [*] Cekirdek 8 : Takasbank & AKD Para Giriş/Çıkış Radarı (BofA & Balina Akışı)
  [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
 ================================================================================
 """)
@@ -202,6 +204,51 @@ def handle_sentiment(ticker: str, model: str = "gemini-3.5-flash"):
     except Exception as e:
         print(f"\n[SENTIMENT HATASI] Analiz sırasında problem oluştu: {e}")
 
+def handle_akd(ticker: str):
+    if not ticker:
+        print("[HATA] Lutfen AKD analizi yapilacak BIST sembolu girin. Orn: '--akd ISCTR.IS'")
+        return
+    try:
+        from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
+        import pandas as pd
+        
+        t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
+        download_ticker_data(t, period="6mo", interval="1d", save_dir=RAW_DATA_DIR)
+        csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
+        if not os.path.exists(csv_file):
+            print(f"[HATA] {t} verisi indirilemedi.")
+            return
+            
+        df = pd.read_csv(csv_file)
+        engine = BistAkdFlowEngine()
+        print("\n" + "="*85)
+        print(engine.get_akd_summary_text(t, df))
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[AKD HATASI] Analiz sırasında problem oluştu: {e}")
+
+def handle_akd_scan(mode: str = "bist30", top_n: int = 15):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        tickers = get_tickers(mode=mode)
+        engine = BistAkdFlowEngine()
+        
+        print("\n" + "="*85)
+        print(f"🔍 BIST {mode.upper()} TAKASBANK & AKD KURUMSAL PARA GİRİŞ/ÇIKIŞ TARAMASI")
+        print("="*85)
+        print(f"📊 Taranan Evren: {len(tickers)} Hisse | Sıralama Kriteri: Kurumsal Balina Skoru (CMF + MFI + VWAP)")
+        print("-" * 85)
+        
+        results = engine.scan_akd_universe(tickers[:top_n])
+        
+        print(f"{'Sıra':<5} {'Sembol':<10} {'Fiyat':<10} {'Balina Skoru':<14} {'CMF(20G)':<11} {'MFI(14G)':<10} {'İlk 5 Alıcı %':<15} {'Durum':<20}")
+        print("-" * 85)
+        for idx, r in enumerate(results, 1):
+            print(f"{idx:<5} {r['ticker']:<10} {r['close']:<10.2f} {r['whale_score']:<+14.2f} {r['cmf_20']:<+11.3f} {r['mfi_14']:<10.1f} %{r['top5_buy_pct']:<14.1f} {r['status_badge']:<20}")
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[AKD TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
+
 def main():
     banner()
     parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi Ana Iletisim Arayuzu")
@@ -213,6 +260,8 @@ def main():
     parser.add_argument("--train-predictor", action="store_true", help="Tokenizer egitimini atlayıp dogrudan Tahminci (Predictor) motorunun derin egitimine basla")
     parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Secilen BIST hissesinde (Orn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu uret")
     parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ASELS.IS) Canli KAP ve Haber NLP Duyarlilik ve Fuzyon analizini calistir")
+    parser.add_argument("--akd", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ISCTR.IS) Takasbank & AKD Para Giris/Cikis ve Balina analizini calistir")
+    parser.add_argument("--akd-scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini Kurumsal Balina Para Akisina gore tara ve sirala (Varsayilan: bist30)")
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Secilen hissede gecmis N aylik Walk-Forward Backtest simülasyonu calistir")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratlari icin Canli VIOP (Long / Short) sinyal ve pozisyon taramasi yap")
@@ -253,6 +302,12 @@ def main():
 
     if args.sentiment:
         handle_sentiment(args.sentiment, model=args.model)
+
+    if args.akd:
+        handle_akd(args.akd)
+
+    if args.akd_scan:
+        handle_akd_scan(mode=args.akd_scan, top_n=args.top)
 
     if args.viop_signals:
         handle_viop_signals(top_n=args.top)
