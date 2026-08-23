@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-BIST 100 HİBRİT YAPAY ZEKA YATIRIM SİSTEMİ
-Kronos-Base (Quant Forecasting) + TradingAgents (Multi-Agent Committee) + Gemini Rotational API Engine
+🏛️ BIST 100 HİBRİT YAPAY ZEKA VE KANTİTATİF FİNANS SİSTEMİ
+Kronos-Base (Quant Forecasting) + TradingAgents (Multi-Agent Committee) + 
+İleri Ekonometri & Stokastik Simülasyon + VİOP BSM Greeks + HRP & Black-Litterman Portföy Optimizasyonu
 """
 
 import os
 import sys
 import argparse
 from datetime import datetime
+import pandas as pd
 
 # Windows konsollarında Unicode/Emoji kilitlenmelerini önleme:
 if hasattr(sys.stdout, 'reconfigure'):
@@ -18,7 +20,7 @@ ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from bist_quant.bist_downloader import download_bist_universe, download_ticker_data
+from bist_quant.bist_downloader import download_bist_universe, download_ticker_data, RAW_DATA_DIR
 from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee
@@ -27,67 +29,216 @@ from bist_quant.bist_backtester import BistBacktester
 from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
 from bist_quant.bist_akd_flow import BistAkdFlowEngine
+from bist_quant.bist_econometrics import BistEconometrics
+from bist_quant.bist_portfolio_opt import BistPortfolioOptimizer
+from bist_quant.bist_microstructure import BistMarketMicrostructure
 
 def banner():
     print("""
 ================================================================================
-   BIST 100 HIBRIT YAPAY ZEKA KANTITATIF VE KOMITE YATIRIM SISTEMI
+   🏛️ BIST 100 HİBRİT YAPAY ZEKA KANTİTATİF VE EKONOMETRİK YATIRIM SİSTEMİ
 --------------------------------------------------------------------------------
- [*] Cekirdek 1 : Kronos-Base Foundation Model (102.3M Parametre - Mum Tahmincisi)
- [*] Cekirdek 2 : Klasik Ekonometri & 1.000 Yollu Monte Carlo Motoru (ADF & VaR)
- [*] Cekirdek 3 : TradingAgents Coklu Yapay Zeka Komitesi (Bull vs Bear Debate & XAI)
- [*] Cekirdek 4 : BIST 30/100 Otomatik Tarama ve Keşif Motoru (Screener)
- [*] Cekirdek 5 : Walk-Forward Backtesting & Finansal Performans Doğrulama Motoru
- [*] Cekirdek 6 : Cok Modlu (Multi-Modal) NLP Haber & KAP Duyarlilik Fuzyon Motoru
- [*] Cekirdek 7 : VIOP Cift Yonlu (Long/Short) Turev & Nemalandirma Motoru
- [*] Cekirdek 8 : Takasbank & AKD Para Giriş/Çıkış Radarı (BofA & Balina Akışı)
- [*] Motor      : 3'lu Gemini API Akilli Rotasyon & Kota Koruma Kalkani
+ [*] Çekirdek 1 : Kronos-Base Foundation Model (102.3M Parametre - Mum Tahmincisi)
+ [*] Çekirdek 2 : İleri Ekonometri, GARCH & Merton Jump Diffusion Stokastik Motoru
+ [*] Çekirdek 3 : 5 Temel Ekonometrik Tanı Testi (JB, DW, BG-LM, White, RESET, VIF)
+ [*] Çekirdek 4 : TradingAgents Çoklu Yapay Zeka Komitesi (Bull vs Bear Debate & XAI)
+ [*] Çekirdek 5 : Hiyerarşik Risk Paritesi (HRP) & Black-Litterman Portföy Motoru
+ [*] Çekirdek 6 : BSM Opsiyon Fiyatlama, Greeks (Δ,Γ,𝒱,Θ,ρ,Vanna) & Delta-Hedge
+ [*] Çekirdek 7 : Piyasa Mikro-Yapısı (Corwin-Schultz, Roll, Amihud, VPIN, POC)
+ [*] Çekirdek 8 : İstatistiksel Arbitraj & Eşbütünleşme (Engle-Granger Pairs Trading)
+ [*] Çekirdek 9 : Takasbank & AKD Para Giriş/Çıkış Radarı (BofA & Balina Akışı)
+ [*] Çekirdek 10: Çok Modlu (Multi-Modal) NLP Haber & KAP Duyarlılık Füzyon Motoru
+ [*] Motor      : 3'lü Gemini API Akıllı Rotasyon & Deterministik Veto Kalkanı
 ================================================================================
 """)
 
 def handle_download(mode="bist100", period="max", workers=8):
-    print("\n[STEP 1] Yahoo Finance Uzerinden BIST Tarihsel Veri Setleri Indiriliyor...")
+    print("\n[STEP 1] Yahoo Finance Üzerinden BIST Tarihsel Veri Setleri İndiriliyor...")
     download_bist_universe(mode=mode, period=period, max_workers=workers)
-    print("\n[STEP 2] Kronos-base Ozel Formati Icin On Isleme ve Birlestirme Calisiyor...")
+    print("\n[STEP 2] Kronos-base Özel Formatı İçin Ön İşleme ve Birleştirme Çalışıyor...")
     preprocess_bist_for_kronos()
-    print("\n[BASARILI] Veri Hazirligi Bitti! Artik '--train-kronos' ile derin egitim baslatabilir veya '--analyze <SEMBOL>' kullanabilirsiniz.")
+    print("\n[BAŞARILI] Veri Hazırlığı Bitti! Artık '--train-kronos' ile derin eğitim başlatabilir veya '--analyze <SEMBOL>' kullanabilirsiniz.")
 
 def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6, skip_tok=False):
-    print("\n[EGITIM YONETICISI] 4GB VRAM Optimize Derin BIST 100 Ince Ayar (Fine-Tuning) Baslatiliyor...")
+    print("\n[EGITIM YONETICISI] 4GB VRAM Optimize Derin BIST 100 İnce Ayar (Fine-Tuning) Başlatılıyor...")
     generate_bist_config(epochs_tokenizer=epochs_tok, epochs_predictor=epochs_pred, batch_size=batch_size, accum_steps=accum, lr_predictor=lr, train_tokenizer=not skip_tok)
     run_training(skip_tokenizer=skip_tok)
 
 def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.3):
     if not ticker:
-        print("[HATA] Lutfen analiz edilecek BIST sembolu girin. Orn: '--analyze THYAO.IS'")
+        print("[HATA] Lütfen analiz edilecek BIST sembolü girin. Örn: '--analyze THYAO.IS'")
         return
         
     try:
         committee = BistHybridCommittee(gemini_model=model, temperature=temp)
         verdict, report_file, chart_file = committee.analyze_ticker(ticker, forecast_days=days)
         print("\n" + "="*80)
-        print("ANALIZ GERCEKLESTIRILDI - CIKTI OZETI:")
+        print("ANALİZ GERÇEKLEŞTİRİLDİ - ÇIKTI ÖZETİ:")
         print("="*80)
         print(verdict)
         print("="*80)
-        print(f"Tam Komite Tartisma Raporu : {report_file}")
+        print(f"Tam Komite Tartışma Raporu : {report_file}")
         if chart_file:
-            print(f"Fiyat Projeksiyon Grafigi  : {chart_file}")
+            print(f"Fiyat Projeksiyon Grafiği  : {chart_file}")
     except Exception as e:
-        print(f"\n[KOMITE HATASI] Analiz sirasinda problem olustu: {e}")
-        if "api anahtar" in str(e).lower() or "not found" in str(e).lower():
-            print("[BILGI] Lutfen .env dosyanizdaki GOOGLE_API_KEY_1, _2, _3 degerlerini kontrol ettiginizden emin olun!")
+        print(f"\n[KOMİTE HATASI] Analiz sırasında problem oluştu: {e}")
+
+def handle_econometrics(ticker: str, days: int = 15):
+    if not ticker:
+        print("[HATA] Lütfen ekonometrik analiz yapılacak BIST sembolü girin. Örn: '--econometrics ISCTR.IS'")
+        return
+    try:
+        t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
+        download_ticker_data(t, period="5y", interval="1d", save_dir=RAW_DATA_DIR)
+        csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
+        if not os.path.exists(csv_file):
+            print(f"[HATA] {t} verisi indirilemedi.")
+            return
+            
+        df = pd.read_csv(csv_file)
+        econ = BistEconometrics()
+        print("\n" + "="*85)
+        print(econ.generate_econometric_report(df, t, forecast_days=days))
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[EKONOMETRİ HATASI] Analiz sırasında problem oluştu: {e}")
+
+def handle_portfolio_opt(tickers_str: str, target: str = "max_sharpe", rf: float = 0.45):
+    try:
+        tickers = [t.strip().upper() for t in tickers_str.split(",") if t.strip()]
+        formatted_tickers = [t if t.endswith(".IS") else f"{t}.IS" for t in tickers]
+        
+        print(f"\n💼 [PORTFÖY OPTİMİZASYONU] {len(formatted_tickers)} Hisse İçin Veriler Yükleniyor...")
+        import yfinance as yf
+        df_prices = pd.DataFrame()
+        for t in formatted_tickers:
+            data = yf.download(t, period="1y", progress=False)
+            if not data.empty and "Close" in data.columns:
+                df_prices[t] = data["Close"]
+
+        optimizer = BistPortfolioOptimizer(risk_free_rate_annual=rf)
+        mean_ret, cov, corr = optimizer.compute_returns_and_covariance(df_prices)
+        
+        # 1. Markowitz
+        mvo_res = optimizer.optimize_markowitz(mean_ret, cov, target=target)
+        # 2. HRP
+        hrp_res = optimizer.optimize_hrp(df_prices)
+        # 3. Black-Litterman (AI Equilibrium)
+        bl_res = optimizer.optimize_black_litterman(df_prices)
+        # 4. Kelly Criterion
+        kelly_res = optimizer.calculate_kelly_portfolio(mean_ret, cov, fraction=0.5)
+
+        print("\n" + "="*90)
+        print(f"📊 KURUMSAL ÇOKLU MODEL PORTFÖY TAHSİS RAPORU (Gösterge Faiz: %{rf*100:.1f})")
+        print("="*90)
+        print(f"{'Hisse':<12} {'Markowitz (MVO)':<18} {'HRP (Lopez de Prado)':<24} {'Black-Litterman':<20} {'Kelly (0.5x)':<15}")
+        print("-" * 90)
+        for t in formatted_tickers:
+            w_mvo = mvo_res['weights'].get(t, 0.0) * 100.0
+            w_hrp = hrp_res['weights'].get(t, 0.0) * 100.0
+            w_bl = bl_res['weights'].get(t, 0.0) * 100.0
+            w_k = kelly_res.get('normalized_portfolio_weights', {}).get(t, 0.0) * 100.0
+            print(f"{t:<12} %{w_mvo:<17.1f} %{w_hrp:<23.1f} %{w_bl:<19.1f} %{w_k:<14.1f}")
+        print("-" * 90)
+        print(f"📈 Beklenen Getiri: Markowitz: %{mvo_res['expected_return_pct']} | HRP: %{hrp_res['expected_return_pct']} | Black-Litterman: %{bl_res['expected_return_pct']}")
+        print(f"📉 Portföy Risk/Vol: Markowitz: %{mvo_res['expected_volatility_pct']} | HRP: %{hrp_res['expected_volatility_pct']} | Black-Litterman: %{bl_res['expected_volatility_pct']}")
+        print(f"🏆 Sharpe Oranları: Markowitz: {mvo_res['sharpe_ratio']:.3f} | HRP: {hrp_res['sharpe_ratio']:.3f} | Black-Litterman: {bl_res['sharpe_ratio']:.3f}")
+        print("="*90 + "\n")
+    except Exception as e:
+        print(f"\n[PORTFÖY OPTİMİZASYON HATASI] {e}")
+
+def handle_microstructure(ticker: str):
+    if not ticker:
+        print("[HATA] Lütfen analiz edilecek BIST sembolü girin. Örn: '--microstructure ISCTR.IS'")
+        return
+    try:
+        t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
+        download_ticker_data(t, period="6mo", interval="1d", save_dir=RAW_DATA_DIR)
+        csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
+        if not os.path.exists(csv_file):
+            print(f"[HATA] {t} verisi indirilemedi.")
+            return
+            
+        df = pd.read_csv(csv_file)
+        ms = BistMarketMicrostructure()
+        print("\n" + "="*85)
+        print(ms.generate_microstructure_report(df, t))
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[MİKRO-YAPI HATASI] Analiz sırasında problem oluştu: {e}")
+
+def handle_pairs_trade(pairs_str: str):
+    try:
+        tickers = [t.strip().upper() for t in pairs_str.split(",") if t.strip()]
+        if len(tickers) != 2:
+            print("[HATA] Lütfen 2 hisse girin. Örn: '--pairs-trade ISCTR.IS,AKBNK.IS'")
+            return
+        t1 = tickers[0] if tickers[0].endswith(".IS") else f"{tickers[0]}.IS"
+        t2 = tickers[1] if tickers[1].endswith(".IS") else f"{tickers[1]}.IS"
+        
+        download_ticker_data(t1, period="2y", interval="1d", save_dir=RAW_DATA_DIR)
+        download_ticker_data(t2, period="2y", interval="1d", save_dir=RAW_DATA_DIR)
+        
+        df1 = pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t1}_1d.csv"))
+        df2 = pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t2}_1d.csv"))
+        
+        s1 = df1.set_index("timestamps")["close"]
+        s2 = df2.set_index("timestamps")["close"]
+        
+        econ = BistEconometrics()
+        res = econ.test_cointegration_pair(s1, s2, name1=t1, name2=t2)
+        
+        print("\n" + "="*85)
+        print(f"📊 İSTATİSTİKSEL ARBİTRAJ & EŞBÜTÜNLEŞME (PAIRS TRADING): [{t1}] vs [{t2}]")
+        print("="*85)
+        coint_badge = "✅ EŞBÜTÜNLEŞİK (Cointegrated - Mean-Reverting)" if res['is_cointegrated'] else "❌ EŞBÜTÜNLEŞİK DEĞİL (Iraksak Seri)"
+        print(f"  • Eşbütünleşme Durumu     : {coint_badge} (p={res['p_value']:.4f}, t-stat={res['t_stat']:.3f})")
+        print(f"  • Optimal Hedge Oranı (β) : {res['hedge_ratio']:.4f} (1 Adet {t1} için {res['hedge_ratio']:.4f} Adet {t2})")
+        print(f"  • Mevcut Spread Z-Score   : {res['current_z_score']:+.2f} σ")
+        print(f"  • Yarılanma Ömrü (Half-Life): {res['half_life_days']:.1f} Gün (Ortalamaya Dönüş Hızı)")
+        print(f"  • İstatistiksel Sinyal    : 🎯 {res['trading_signal']}")
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[PAIRS TRADING HATASI] {e}")
+
+def handle_greeks(ticker: str, spot: float = None, strike: float = None, days: float = 30, vol: float = 0.32):
+    try:
+        engine = BistViopEngine()
+        if spot is None:
+            t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
+            download_ticker_data(t, period="1mo", interval="1d", save_dir=RAW_DATA_DIR)
+            df = pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t}_1d.csv"))
+            spot = float(df["close"].iloc[-1])
+        if strike is None:
+            strike = round(spot * 1.05, 2)
+            
+        greeks = engine.calculate_bsm_option_greeks(spot=spot, strike=strike, days_to_expiry=days, volatility=vol)
+        theo_fut = engine.calculate_theoretical_futures_price(spot_price=spot, days_to_expiry=int(days))
+        
+        print("\n" + "="*85)
+        print(f"📊 BLACK-SCHOLES-MERTON (BSM) OPSİYON VE GREEKS RAPORU ({ticker.upper()})")
+        print("="*85)
+        print(f"  • Spot Fiyat: {spot:.2f} TRY | Kullanım Fiyatı (Strike): {strike:.2f} TRY | Vadeye Kalan: {days:.0f} Gün | Vol: %{vol*100:.1f}")
+        print(f"  • Teorik Vadeli Fiyat (Futures): {theo_fut:.2f} TRY")
+        print("-" * 85)
+        print(f"  • 📈 CALL Opsiyon Primi : {greeks['call_price']:.3f} TRY  | Delta (Δ): {greeks['call_delta']:+.4f} | Theta (Θ): {greeks['call_theta_daily']:.4f} TL/Gün")
+        print(f"  • 📉 PUT Opsiyon Primi  : {greeks['put_price']:.3f} TRY  | Delta (Δ): {greeks['put_delta']:+.4f} | Theta (Θ): {greeks['put_theta_daily']:.4f} TL/Gün")
+        print(f"  • ⚡ Gamma (Γ)          : {greeks['gamma']:.6f}   | Vega (𝒱): {greeks['vega']:.4f} | Rho (ρ): {greeks['call_rho']:+.4f}")
+        print(f"  • 🔬 Vanna / Volga      : Vanna: {greeks['vanna']:.6f} | Volga: {greeks['volga']:.6f}")
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[GREEKS HATASI] {e}")
 
 def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.2):
     try:
         scanner = BistScanner(gemini_model=model, temperature=temp)
         scanner.scan_and_report(mode=mode, top_n=top_n, forecast_days=days)
     except Exception as e:
-        print(f"\n[TARAMA HATASI] Tarama sirasinda problem olustu: {e}")
+        print(f"\n[TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
 
 def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False, use_viop: bool = False, leverage: float = 1.5):
     if not ticker:
-        print("[HATA] Lutfen backtest edilecek BIST sembolu girin. Orn: '--backtest ISCTR.IS'")
+        print("[HATA] Lütfen backtest edilecek BIST sembolü girin. Örn: '--backtest ISCTR.IS'")
         return
     try:
         backtester = BistBacktester(use_kronos=use_kronos)
@@ -99,104 +250,75 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
             use_viop=use_viop,
             leverage=leverage
         )
-        print("\n" + "="*85)
-        print(f"🏆 BACKTEST TAMAMLANDI: {ticker} (Son {months} Ay{' - VİOP Long/Short' if use_viop else ''})")
-        print("="*85)
-        print(f"💰 Strateji Toplam Getirisi : %{metrics['total_return_pct']:+.2f} (Al-Tut: %{metrics['bnh_return_pct']:+.2f})")
-        print(f"🚀 Alpha (Endeks Üstü Fark) : %{metrics['alpha']:+.2f}")
-        print(f"🎯 Kazanma Oranı (Win Rate) : %{metrics['win_rate']:.1f} ({metrics['winning_trades']}/{metrics['total_trades']} İşlem)")
-        print(f"📊 Sharpe Oranı (Yıllık)   : {metrics['sharpe_ratio']:.2f}")
-        print(f"📉 Maksimum Çekilme (MDD)   : -%{metrics['max_drawdown']:.2f}")
-        print(f"⚖️ Kâr Faktörü (Profit F.)  : {metrics['profit_factor']:.2f}x")
-        print("="*85)
-        print(f"📑 Detaylı Backtest Raporu   : {rep_file}")
-        print(f"📈 Kasa Sermaye Eğrisi (PNG) : {chart_file}\n")
+        print("\n" + "="*80)
+        print(f"BACKTEST TAMAMLANDI - [{ticker}] İÇİN FİNANSAL PERFORMANS METRİKLERİ:")
+        print("="*80)
+        print(f"  • Strateji Toplam Getirisi : %{metrics.get('strategy_return_pct', 0.0):+.2f}")
+        print(f"  • Al ve Tut (Buy & Hold)   : %{metrics.get('buy_and_hold_return_pct', 0.0):+.2f}")
+        print(f"  • Üretilen Alfa (Alpha)    : %{metrics.get('alpha_pct', 0.0):+.2f}")
+        print(f"  • Kazanma Oranı (Win Rate) : %{metrics.get('win_rate_pct', 0.0):.1f} ({metrics.get('winning_trades', 0)} / {metrics.get('total_trades', 0)} İşlem)")
+        print(f"  • Kâr / Zarar Oranı (P/L)  : {metrics.get('profit_factor', 0.0):.2f}")
+        print(f"  • Maksimum Çekilme (MaxDD) : %{metrics.get('max_drawdown_pct', 0.0):.2f}")
+        print(f"  • Yıllık Sharpe Oranı      : {metrics.get('sharpe_ratio', 0.0):.2f}")
+        print(f"  • Gerçekleşen İşlem Sayısı : {metrics.get('total_trades', 0)} Adet (Ort. Süre: {metrics.get('avg_holding_days', 0.0):.1f} Gün)")
+        print("="*80)
+        print(f"Detaylı Performans Dosyası : {rep_file}")
+        if chart_file:
+            print(f"Kümülatif Getiri Grafiği   : {chart_file}")
     except Exception as e:
         print(f"\n[BACKTEST HATASI] Simülasyon sırasında problem oluştu: {e}")
 
 def handle_viop_signals(top_n: int = 10):
     try:
-        from bist_quant.bist_100_tickers import get_tickers
-        from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
-        import pandas as pd
+        from bist_quant.bist_scanner import BistScanner
+        scanner = BistScanner()
+        engine = BistViopEngine()
         
-        tickers = get_tickers(mode="bist30")
-        viop_engine = BistViopEngine()
+        print("\n" + "="*80)
+        print("⚡ BIST 30 VİOP ÇİFT YÖNLÜ (LONG / SHORT) KONTRAT SİNYAL RADARI")
+        print("="*80)
+        print("📊 Taranan Evren: BIST 30 Kontratları | Veri: Kronos-Base Quant + Trend + NLP Sentiment")
+        print("-" * 80)
         
-        print("\n" + "="*85)
-        print("⚡ BIST 30 CANLI VİOP (LONG / SHORT) SİNYAL VE POZİSYON TARAMASI")
-        print("="*85)
-        print(f"📊 Taranan Evren: BIST 30 ({len(tickers)} Hisse)")
-        print("⏳ Sinyal Vadesi: 1-15 İşlem Günü | Takasbank Nemalandırma: %45")
-        print("-" * 85)
+        candidates = scanner.scan_universe(mode="bist30", top_n=top_n, forecast_days=15)
+        signals = engine.generate_viop_signals(candidates)
         
-        candidates = []
-        for t in tickers[:top_n]:
-            try:
-                download_ticker_data(t, period="6mo", interval="1d", save_dir=RAW_DATA_DIR)
-                csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
-                if not os.path.exists(csv_file):
-                    continue
-                df = pd.read_csv(csv_file)
-                if len(df) < 50:
-                    continue
-                close = float(df["close"].iloc[-1])
-                ema20 = float(df["close"].ewm(span=20).mean().iloc[-1])
-                sma50 = float(df["close"].rolling(50).mean().iloc[-1])
-                
-                trend = "BOĞA" if (ema20 > sma50 and close > sma50) else ("AYI" if (ema20 < sma50 and close < sma50) else "NÖTR")
-                momentum = ((close - float(df["close"].iloc[-10])) / float(df["close"].iloc[-10])) * 100.0
-                
-                candidates.append({
-                    "ticker": t,
-                    "close": close,
-                    "expected_return": momentum,
-                    "trend": trend
-                })
-            except Exception:
-                continue
-                
-        signals = viop_engine.generate_viop_signals(candidates)
-        
-        print(f"{'Sıra':<5} {'VİOP Kontrat':<14} {'Spot Fiyat':<12} {'Rejim':<10} {'10G Trend %':<14} {'VİOP Sinyali':<28} {'Güven':<8}")
-        print("-" * 85)
-        for idx, s in enumerate(signals, 1):
-            print(f"{idx:<5} {s['contract']:<14} {s['close']:<12.2f} {s['trend']:<10} {s['expected_return']:<+14.2f} {s['signal']:<28} {s['confidence']:<8}")
-        print("="*85 + "\n")
+        print(f"{'Kontrat':<12} {'Spot Fiyat':<12} {'Quant Getiri %':<16} {'Trend':<10} {'Sinyal Kararı':<30} {'Güven':<8}")
+        print("-" * 80)
+        for s in signals:
+            print(f"{s['contract']:<12} {s['close']:<12.2f} %{s['expected_return']:<15.2f} {s['trend']:<10} {s['signal']:<30} {s['confidence']:<8}")
+        print("="*80 + "\n")
     except Exception as e:
         print(f"\n[VİOP SİNYAL HATASI] Tarama sırasında problem oluştu: {e}")
 
 def handle_sentiment(ticker: str, model: str = "gemini-3.5-flash"):
     if not ticker:
-        print("[HATA] Lutfen duyarliligi analiz edilecek BIST sembolu girin. Orn: '--sentiment ASELS.IS'")
+        print("[HATA] Lütfen analiz edilecek BIST sembolü girin. Örn: '--sentiment ASELS.IS'")
         return
     try:
-        engine = BistSentimentEngine(gemini_model=model)
-        print(f"\n🔍 [{ticker}] için Canlı KAP ve Finansal Haber NLP Duyarlılık Analizi Başlatılıyor...")
-        sentiment_result = engine.analyze_sentiment(ticker)
+        engine = BistSentimentEngine(gemini_model=model, temperature=0.2)
+        print(f"\n🌍 [{ticker}] için Canlı KAP ve Finans Haberleri Taranıyor...")
+        data = engine.analyze_sentiment(ticker)
         
         print("\n" + "="*85)
-        print(f"📊 KAP & HABER DUYARLILIK KARNESİ: {sentiment_result['ticker']}")
+        print(f"📰 CANLI NLP HABER & KAP DUYARLILIK ANALİZİ: {ticker.upper()}")
         print("="*85)
-        print(f"🎯 Duyarlılık Skoru (Sentiment) : {sentiment_result['sentiment_score']:+.2f} [-1.0 (Kriz) ile +1.0 (Katalizör)]")
-        print(f"💥 Etki Şiddeti (Impact)        : %{sentiment_result['impact_intensity']*100:.0f}")
-        print(f"🏷️ Duyarlılık Derecesi          : {sentiment_result['sentiment_label']}")
-        print(f"🚀 Pozitif Katalizör Tespiti     : {'EVET 🟢' if sentiment_result['catalyst_detected'] else 'YOK ⚪'}")
-        print(f"🚨 Negatif Kriz Katalizörü       : {'EVET 🔴' if sentiment_result['bearish_catalyst_detected'] else 'YOK ⚪'}")
-        print(f"📰 İncelenen Haber Sayısı        : {sentiment_result['news_count']} Adet")
-        print(f"📝 Yönetici Özeti                : {sentiment_result['summary']}")
+        print(f"  • Genel Duyarlılık Skoru : {data['sentiment_score']:+.2f} [-1.0 ile +1.0]")
+        print(f"  • Duyarlılık Etiketi     : {data['sentiment_label']}")
+        print(f"  • Etki Şiddeti (Impact)  : %{data['impact_intensity']*100:.0f}")
+        print(f"  • Pozitif Katalizör      : {'EVET 🟢' if data['catalyst_detected'] else 'YOK ⚪'}")
+        print(f"  • Negatif Risk Faktörü   : {'EVET 🔴' if data['bearish_catalyst_detected'] else 'YOK ⚪'}")
+        print(f"  • İncelenen Haber Sayısı : {data['news_count']} Adet")
+        print("-" * 85)
+        print(f"  • NLP Haber Analiz Özeti :\n    {data['summary']}")
+        if data["key_catalysts"]:
+            print("-" * 85)
+            print("  • Öne Çıkan Başlıklar / Maddeler:")
+            for cat in data["key_catalysts"]:
+                print(f"    - {cat}")
+        print("-" * 85)
         
-        if sentiment_result.get("key_catalysts"):
-            print("\n📌 Öne Çıkan Başlıklar:")
-            for cat in sentiment_result["key_catalysts"]:
-                print(f"   {cat}")
-                
-        fusion = engine.fuse_with_technical_signal(tech_expected_return=1.0, sentiment_data=sentiment_result)
-        print("\n" + "-"*85)
-        print("🧠 HİBRİT TEKNİK + NLP FÜZYON MATRİSİ:")
-        print(f"  • Teknik Model Beklentisi : %{fusion['tech_expected_return']:+.2f}")
-        print(f"  • Haber İvmesi Katkısı    : %{fusion['news_momentum_return']:+.2f}")
-        print(f"  • 🏆 Nihai Füzyon Getirisi: %{fusion['fused_expected_return']:+.2f}")
+        fusion = engine.modulate_quant_threshold(base_expected_return=3.5, sentiment_data=data)
         print(f"  • Dinamik Alım Barajı     : %{fusion['modulated_threshold']:.2f}")
         print(f"  • Kârı Koşturma Stop Mes. : %{fusion['modulated_trailing_pct']:.2f}")
         print(f"  • Karar Önerisi           : {fusion['recommendation']}")
@@ -206,12 +328,9 @@ def handle_sentiment(ticker: str, model: str = "gemini-3.5-flash"):
 
 def handle_akd(ticker: str):
     if not ticker:
-        print("[HATA] Lutfen AKD analizi yapilacak BIST sembolu girin. Orn: '--akd ISCTR.IS'")
+        print("[HATA] Lütfen AKD analizi yapılacak BIST sembolü girin. Örn: '--akd ISCTR.IS'")
         return
     try:
-        from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
-        import pandas as pd
-        
         t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
         download_ticker_data(t, period="6mo", interval="1d", save_dir=RAW_DATA_DIR)
         csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
@@ -251,35 +370,40 @@ def handle_akd_scan(mode: str = "bist30", top_n: int = 15):
 
 def main():
     banner()
-    parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi Ana Iletisim Arayuzu")
+    parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi & Ekonometri Ana İletişim Arayüzü")
     
     # Komut Modları
-    parser.add_argument("--download-all", action="store_true", help="Tum BIST 100 gecmis gunluk/saatlik verilerini indir ve hazirla")
-    parser.add_argument("--download-mode", default="bist100", choices=["bist100", "bist30"], help="Indirilecek hisse evreni (Varsayilan: bist100)")
-    parser.add_argument("--train-kronos", action="store_true", help="Kronos-base modelini BIST 100 uzerinde uygulanacak Derin Egitimi baslat")
-    parser.add_argument("--train-predictor", action="store_true", help="Tokenizer egitimini atlayıp dogrudan Tahminci (Predictor) motorunun derin egitimine basla")
-    parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Secilen BIST hissesinde (Orn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu uret")
-    parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ASELS.IS) Canli KAP ve Haber NLP Duyarlilik ve Fuzyon analizini calistir")
-    parser.add_argument("--akd", type=str, metavar="SEMBOL", help="Secilen hissede (Orn: ISCTR.IS) Takasbank & AKD Para Giris/Cikis ve Balina analizini calistir")
-    parser.add_argument("--akd-scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini Kurumsal Balina Para Akisina gore tara ve sirala (Varsayilan: bist30)")
-    parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Tum BIST 30 veya BIST 100 hisselerini otomatik tara ve en iyi firsatlari kesfet (Varsayilan: bist30)")
-    parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Secilen hissede gecmis N aylik Walk-Forward Backtest simülasyonu calistir")
-    parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratlari icin Canli VIOP (Long / Short) sinyal ve pozisyon taramasi yap")
+    parser.add_argument("--download-all", action="store_true", help="Tüm BIST 100 geçmiş günlük verilerini indir ve hazırla")
+    parser.add_argument("--download-mode", default="bist100", choices=["bist100", "bist30"], help="İndirilecek hisse evreni")
+    parser.add_argument("--train-kronos", action="store_true", help="Kronos-base modelini BIST 100 üzerinde Derin Eğit")
+    parser.add_argument("--train-predictor", action="store_true", help="Tokenizer eğitimini atlayıp doğrudan Tahminci (Predictor) eğit")
+    parser.add_argument("--analyze", type=str, metavar="SEMBOL", help="Seçilen hissede (Örn: THYAO.IS) hibrit Quant + Ajan Komitesi raporu üret")
+    parser.add_argument("--econometrics", type=str, metavar="SEMBOL", help="Seçilen hissede 15 maddelik Tam Ekonometrik Tanı & Merton MC Raporu çalıştır")
+    parser.add_argument("--portfolio-opt", type=str, metavar="SEMBÖLLER", help="Virgülle ayrılmış hisselerde Markowitz, HRP ve Black-Litterman portföy tahsisi yap (Örn: 'THYAO.IS,ISCTR.IS,AKBNK.IS,ASELS.IS,BIMAS.IS')")
+    parser.add_argument("--microstructure", type=str, metavar="SEMBOL", help="Seçilen hissede Corwin-Schultz Spread, Roll Spread, Amihud, VPIN ve Hacim Profili analizini çalıştır")
+    parser.add_argument("--pairs-trade", type=str, metavar="SEMBOL1,SEMBOL2", help="İki hisse arasında Engle-Granger Eşbütünleşme, Hedge Oranı, Z-Score ve Half-Life hesapla")
+    parser.add_argument("--greeks", type=str, metavar="SEMBOL", help="Seçilen hissede BSM Opsiyon Fiyatlama, Greeks ve Delta-Hedge matrisini hesapla")
+    parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Seçilen hissede Canlı KAP ve Haber NLP Duyarlılık analizini çalıştır")
+    parser.add_argument("--akd", type=str, metavar="SEMBOL", help="Seçilen hissede Takasbank & AKD Para Giriş/Çıkış ve Balina analizini çalıştır")
+    parser.add_argument("--akd-scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini Kurumsal Balina Para Akışına göre tara")
+    parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini otomatik tara ve en iyi fırsatları keşfet")
+    parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
+    parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
     
     # Opsiyonel parametreler
-    parser.add_argument("--viop", action="store_true", help="Backtest icinde Cift Yonlu (Long & Short) VIOP turev motorunu calistir")
-    parser.add_argument("--leverage", type=float, default=1.5, help="VIOP kaldirac katsayisi (Varsayilan: 1.5x)")
-    parser.add_argument("--top", type=int, default=5, help="Tarama modunda derin analize girecek hisse sayisi (Varsayilan: 5)")
-    parser.add_argument("--days", type=int, default=15, help="Kronos-base quant projeksiyon gun sayisi (Varsayilan: 15)")
-    parser.add_argument("--months", type=int, default=6, help="Backtest test periyodu (Ay, Varsayilan: 6)")
-    parser.add_argument("--sl", type=float, default=3.5, help="Backtest Stop-Loss yuzdesi (Varsayilan: 3.5)")
-    parser.add_argument("--tp", type=float, default=8.0, help="Backtest Take-Profit yuzdesi (Varsayilan: 8.0)")
-    parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest icinde derin Kronos modelini calistir")
-    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Sistemin sozel akil yurutmede kullanacigi Gemini modeli (Varsayilan: gemini-3.5-flash)")
-    parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayisi")
-    parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor (base) epok sayisi")
-    parser.add_argument("--batch-size", type=int, default=2, help="Fine-tuning: 4GB VRAM icin batch size (Varsayilan: 2)")
-    parser.add_argument("--workers", type=int, default=8, help="Veri indirmedeki paralel thread sayisi")
+    parser.add_argument("--viop", action="store_true", help="Backtest içinde Çift Yönlü (Long & Short) VİOP türev motorunu çalıştır")
+    parser.add_argument("--leverage", type=float, default=1.5, help="VİOP kaldıraç katsayısı (Varsayılan: 1.5x)")
+    parser.add_argument("--top", type=int, default=5, help="Tarama modunda derin analize girecek hisse sayısı")
+    parser.add_argument("--days", type=int, default=15, help="Projeksiyon gün sayısı (Varsayılan: 15)")
+    parser.add_argument("--months", type=int, default=6, help="Backtest test periyodu (Ay)")
+    parser.add_argument("--sl", type=float, default=3.5, help="Stop-Loss yüzdesi")
+    parser.add_argument("--tp", type=float, default=8.0, help="Take-Profit yüzdesi")
+    parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest içinde derin Kronos modelini çalıştır")
+    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Kullanılacak Gemini modeli")
+    parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayısı")
+    parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor epok sayısı")
+    parser.add_argument("--batch-size", type=int, default=2, help="Batch size")
+    parser.add_argument("--workers", type=int, default=8, help="Veri indirmedeki paralel thread sayısı")
     
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
@@ -289,32 +413,32 @@ def main():
     
     if args.download_all:
         handle_download(mode=args.download_mode, period="max", workers=args.workers)
-        
     if args.train_kronos:
         handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=False)
-        
     if args.train_predictor:
-        print("\n🚀 [DOĞRUDAN PREDICTOR AŞAMASI] Usta Tokenizer rekorunuz hafızaya eklenerek BIST Tahminci modeli eğitimi başlatılıyor!")
         handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=True)
-        
     if args.analyze:
         handle_analyze(args.analyze, days=args.days, model=args.model)
-
+    if args.econometrics:
+        handle_econometrics(args.econometrics, days=args.days)
+    if args.portfolio_opt:
+        handle_portfolio_opt(args.portfolio_opt)
+    if args.microstructure:
+        handle_microstructure(args.microstructure)
+    if args.pairs_trade:
+        handle_pairs_trade(args.pairs_trade)
+    if args.greeks:
+        handle_greeks(args.greeks, days=args.days)
     if args.sentiment:
         handle_sentiment(args.sentiment, model=args.model)
-
     if args.akd:
         handle_akd(args.akd)
-
     if args.akd_scan:
         handle_akd_scan(mode=args.akd_scan, top_n=args.top)
-
     if args.viop_signals:
         handle_viop_signals(top_n=args.top)
-
     if args.scan:
         handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)
-
     if args.backtest:
         handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage)
 

@@ -1,39 +1,43 @@
-# 📈 BIST 100 Hybrid AI Quant & Multi-Agent Trading System
+# 📈 BIST 100 Hybrid AI Quant, Econometrics & Institutional Multi-Asset Trading System
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-102.3M_Params-ee4c2c.svg)
-![Statsmodels](https://img.shields.io/badge/Econometrics-ADF_%26_Monte_Carlo-orange.svg)
+![Statsmodels](https://img.shields.io/badge/Econometrics-ADF_KPSS_GARCH_Merton-orange.svg)
+![Portfolio](https://img.shields.io/badge/Portfolio-Markowitz_HRP_Black--Litterman-blueviolet.svg)
+![Options](https://img.shields.io/badge/Derivatives-BSM_Greeks_Delta--Hedge-gold.svg)
 ![Backtesting](https://img.shields.io/badge/Backtest-Walk--Forward_Alpha-green.svg)
 ![Gemini](https://img.shields.io/badge/Gemini-3.5_Flash-00a498.svg)
-![Status](https://img.shields.io/badge/Status-Production_Ready-success.svg)
+![Status](https://img.shields.io/badge/Status-Institutional_Ready-success.svg)
 
-Bu proje, Borsa İstanbul (BIST) hisse senetleri için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **Klasik Ekonometrik Doğrulama (ADF & Parkinson Volatilitesi)**, **1.000 Yollu Stokastik Monte Carlo Simülasyonu**, **Walk-Forward Backtesting Motoru**, **Bilanço Rasyoları**, **Canlı KAP/Haber NLP Duyarlılık Füzyonu**, **VİOP Çift Yönlü (Long/Short) Türev Motoru**, **Takasbank & AKD Para Giriş/Çıkış Radarı** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, tarama ve doğrulama platformudur.
+Bu proje, Borsa İstanbul (BIST) hisse senetleri ve VİOP türev piyasaları için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı kantitatif fiyat tahmini**, **İleri Ekonometri & 5 Temel Tanısal Test Bataryası**, **GARCH(1,1) & Merton Poisson Jump Diffusion Stokastik Simülasyonu**, **Hiyerarşik Risk Paritesi (HRP) & Black-Litterman Portföy Tahsisi**, **Black-Scholes-Merton (BSM) Opsiyon Greeks & Dinamik Delta-Hedge**, **Piyasa Mikro-Yapısı & VPIN Akış Toksisitesi**, **İstatistiksel Arbitraj & Eşbütünleşme (Pairs Trading)**, **Takasbank & AKD Balina Radarı** ve **Çoklu-Ajan (Multi-Agent) Komite Tartışması (TradingAgents)** kurgusunu birleştiren kurumsal düzeyde hibrit bir yatırım fonu, kantitatif analiz ve risk yönetim platformudur.
 
 ---
 
 ## 🚀 Proje Vizyonu
-Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci, klasik ekonometri (ADF durağanlık, mevsimsellik, volatilite rejimi), 1.000 yollu Monte Carlo stokastik simülasyonu, Walk-Forward geçmiş performans doğrulaması, canlı KAP haber duyarlılığı, Takasbank & AKD kurumsal balina takibi ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
+Piyasalardaki klasik indikatör botlarının veya kara kutu (black box) yapay zekaların aksine, bu sistem kararlarını tek bir modele bağlamaz. Karar alma süreci; ekonometrik tanı testleri (Jarque-Bera, Durbin-Watson, Breusch-Godfrey, White, Ramsey RESET), mikro-volatilite tahmincileri (Yang-Zhang, Parkinson), 1.000 yollu Merton sıçramalı Monte Carlo simülasyonu, Lopez de Prado Hiyerarşik Risk Paritesi, BSM opsiyon duyarlılıkları, canlı KAP duyarlılığı, Takasbank & AKD kurumsal balina takibi ve gerçek bir Wall Street araştırma masasındaki gibi farklı disiplinlerden gelen yapay zeka ajanlarının masada kıyasıya tartışmasıyla (**Boğa vs Ayı Debate**) ve Baş Portföy Yöneticisinin nihai **Açıklanabilir Yapay Zeka (XAI)** kararını vermesiyle sonuçlanır.
 
 ---
 
 ## 🧠 Sistem Mimarisi
 
-Sistem birbirine entegre çalışan **8 ana Çekirdek (Core)** üzerinden çalışır:
+Sistem birbirine entegre çalışan **10 ana Çekirdek (Core)** üzerinden çalışır:
 
 ```mermaid
 graph TD
-    A[Canlı Piyasa: Yahoo Finance] --> B(Çekirdek 1: Kronos Quant AI)
-    A --> E_CON(Çekirdek 2: Klasik Ekonometri & Monte Carlo)
+    A[Canlı Piyasa: Yahoo Finance OHLCV] --> B(Çekirdek 1: Kronos Quant AI)
+    A --> E_CON(Çekirdek 2 & 3: İleri Ekonometri & 5 Tanı Testi)
     A --> C[Canlı KAP & Google News RSS]
     A --> F[Bilanço Rasyoları: F/K, PD/DD, ROE]
     A --> G[Canlı Makro: XU100, USD/TRY]
-    A --> AKD(Çekirdek 8: Takasbank & AKD Para Akışı Radarı)
+    A --> AKD(Çekirdek 9: Takasbank & AKD Para Akışı Radarı)
+    A --> MS(Çekirdek 7: Piyasa Mikro-Yapısı & Likidite)
     
-    C --> NLP(Çekirdek 6: NLP Haber & KAP Duyarlılık Füzyonu)
-    NLP --> D(Çekirdek 3: TradingAgents Komitesi)
+    C --> NLP(Çekirdek 10: NLP Haber & KAP Duyarlılık Füzyonu)
+    NLP --> D(Çekirdek 4: TradingAgents Komitesi)
     AKD -->|BofA/İş Yatırım Dengesi, CMF, MFI, VWAP| D
+    MS -->|Corwin-Schultz, Roll Spread, Amihud, VPIN, POC| D
     B -->|1H & 15-30G Mum Projeksiyonu| D
-    E_CON -->|ADF Testi, Parkinson Volatilite, VaR, Monte Carlo| D
+    E_CON -->|ADF/KPSS, GARCH, Merton Jumps, CVaR %95| D
     F -->|Temel Finansal Çarpanlar| D
     G -->|Piyasa & Döviz Yönü| D
     
@@ -50,176 +54,125 @@ graph TD
     
     D5 -->|AL / SAT / TUT, Dinamik Stop, XAI Ağırlıkları| E[Nihai Yatırım Raporu]
     
-    H(Çekirdek 4: BIST Screener Tarama Motoru) -->|Tüm Evreni Tara: BIST 30 / 100| B
-    H -->|En Yüksek Potansiyelli Top N Hisse| D
-    H -->|Konsolide Bülten| I[BIST Keşif & Tarama Bülteni]
-
-    J(Çekirdek 5: Walk-Forward Backtesting) -->|Lookahead-Free Rolling Window| K[Equity Curve & Sharpe/MDD Raporu]
-    
-    L(Çekirdek 7: VİOP Çift Yönlü Türev Motoru) -->|Kaldıraçlı Long & Short + Nemalandırma| M[Piyasa Nötr Türev Getirisi]
+    PORT(Çekirdek 5: HRP & Black-Litterman Portföy Motoru) -->|MVO, Lopez de Prado, Kelly| ALLOC[Optimal Varlık Dağılımı]
+    VIOP_ENG(Çekirdek 6: VİOP BSM Greeks & Delta-Hedge) -->|BSM Δ,Γ,𝒱,Θ,ρ + F_XU030 Hedge| HEDGE[Piyasa Nötr Türev Getirisi]
+    PAIRS(Çekirdek 8: İstatistiksel Arbitraj & Eşbütünleşme) -->|Engle-Granger, Half-Life, Z-Score| STAT_ARB[Pairs Trading Sinyali]
 ```
 
 ---
+
+## 🏛️ 10 Temel Çekirdek (Core Engines)
 
 ### 🔹 Çekirdek 1: Kronos-Base Quant Model (PyTorch & Candlestick Sanitizer)
 * **102.3 Milyon parametreli** Transformer tabanlı finansal zaman serisi tahmin modelidir.
-* **Candlestick Physical Consistency & Circuit Breaker Filter:** Modelin ürettiği her mum için fiziksel $High \ge \max(Open, Close)$ ve $Low \le \min(Open, Close)$ tutarlılığı garantilenir ve BIST ±%10 günlük tavan/taban devre kesici limitleri denetlenir.
+* **Candlestick Physical Consistency & Circuit Breaker Filter:** Fiziksel $High \ge \max(Open, Close)$ ve $Low \le \min(Open, Close)$ tutarlılığı garantilenir ve BIST ±%10 günlük tavan/taban devre kesici limitleri denetlenir.
 * Geçmiş 256 günlük mum grafiğini alarak **1 Haftalık (Kısa Vade)** ve **15-30 Günlük (Orta Vade)** çoklu Monte Carlo çıkarım yolları (`Multi-path inference`) üzerinden destek, direnç ve beklenen getiri projeksiyonunu hesaplar.
-* `holidays` entegrasyonu sayesinde Türkiye'nin resmi ve dini tatil günlerini otomatik algılayıp projeksiyondan atlar.
 
-### 🔹 Çekirdek 2: Klasik Ekonometri, GARCH(1,1) & Merton Jump Diffusion Motoru
-* **Augmented Dickey-Fuller (ADF) Durağanlık Testi:** Serinin birim kök ve trend karakterini *p*-değeri ile matematiksel olarak ispatlar.
-* **GARCH(1,1) Koşullu Varyans Modellemesi:** Zamana bağlı volatilite kümelenmesini (volatility clustering) hesaplar ve simülasyon adımlarına değişken varyans olarak aktarır.
+### 🔹 Çekirdek 2: İleri Ekonometri, GARCH(1,1) & Merton Jump Diffusion
+* **Çift Doğrulamalı Durağanlık (ADF & KPSS):** Serinin birim kök ve trend karakterini ($I(1) \to I(0)$) matematiksel olarak ispatlar.
+* **GARCH(1,1) Koşullu Varyans Modellemesi:** Zamana bağlı volatilite kümelenmesini (volatility clustering) MLE ile çözer ve simülasyon adımlarına değişken varyans olarak aktarır.
 * **Merton Jump Diffusion (Poisson Sıçramalı Şişman Kuyruk):** Standart normal dağılım yerine BIST'in ani haber şoklarını $dN_t \sim \text{Poisson}(\lambda)$ sıçrama prosesi ile modelleyerek şişman kuyruk (fat-tail) riskini tam yansıtır.
-* **Expected Shortfall (CVaR %95) & Parametrik VaR:** Olası kriz senaryolarındaki ortalama kuyruk kaybını ve maksimum riske maruz değeri hesaplar.
+* **Extreme Value Theory (EVT) & Expected Shortfall (CVaR %95 / %99):** Olası kriz senaryolarındaki ortalama kuyruk kaybını ve maksimum riske maruz değeri hesaplar.
 
-### 🔹 Çekirdek 3: TradingAgents Çoklu Yapay Zeka Komitesi & Deterministik Hard-Gate
-* **3'lü Gemini API Rotasyon Motoru:** 429 kota veya hız sınırına takılmadan anahtarlar arasında dinamik ve kesintisiz geçiş yapar (`gemini-3.5-flash`).
-* **Deterministik Hard-Gate Veto Kalkanı:** LLM'in doğal yükseliş yanlılığına (Bullish Bias) karşı programatik koruma devrededir. Monte Carlo kazanma olasılığı <%38 ve CMF para çıkışı varsa, modelin "AL" kararı otomatik olarak "TUT / GÖZLEMLE" statüsüne veto edilir.
+### 🔹 Çekirdek 3: 5 Temel Ekonometrik Tanısal Test Bataryası
+1. **Normallik:** Jarque-Bera ($JB$) ve D'Agostino-Pearson ($K^2$) çarpıklık/basıklık sınaması.
+2. **Otokorelasyon:** Durbin-Watson ($d$) ve Breusch-Godfrey LM ($\chi^2$) yüksek dereceli ardışık bağımlılık testi.
+3. **Değişen Varyans:** Breusch-Pagan, White Testi ve ARCH-LM dinamik oynaklık testi.
+4. **Model Spesifikasyonu:** Ramsey RESET ($F$-istatistiği) ile doğrusal olmayan form hatası tespiti.
+5. **Çoklu Doğrusal Bağlantı:** VIF (Variance Inflation Factor) ve Şartlı Sayı ($CI = \sqrt{\lambda_{\max}/\lambda_{\min}}$) kontrolü.
+
+### 🔹 Çekirdek 4: TradingAgents Çoklu Yapay Zeka Komitesi & Deterministik Veto Kalkanı
+* **3'lü Gemini API Rotasyon Motoru:** Kota sınırına takılmadan anahtarlar arasında dinamik ve kesintisiz geçiş yapar (`gemini-3.5-flash`).
+* **Deterministik Hard-Gate Veto Kalkanı:** LLM'in doğal yükseliş yanlılığına (Bullish Bias) karşı koruma sağlar. Monte Carlo kazanma olasılığı <%38 ve CMF para çıkışı varsa, komitenin "AL" kararı otomatik olarak "TUT / GÖZLEMLE" statüsüne veto edilir.
 * **Boğa vs. Ayı Çatışması (Debate Protocol):** Boğa analisti yükseliş katalizörlerini savunurken, Ayı analisti değer tuzaklarını ve riskleri acımasızca sorgular.
-* **Açıklanabilir Yapay Zeka (XAI):** Nihai yatırım kararının hangi faktörlere dayandığını yüzdesel ağırlıklarla gerekçelendirir.
 
-### 🔹 Çekirdek 4: BIST Otomatik Tarama ve Keşif Motoru (Screener)
-* **2 Aşamalı Hibrit Tarama (2-Stage Funnel):**
-  1. **1. Aşama (Hızlı Ön Eleme):** Tüm evrendeki hisseler saniyeler içinde taranır; 1H ve 15G Quant getiri potansiyeli, 52 haftalık zirveye iskonto ve hacim artışına göre puanlanarak sıralanır.
-  2. **2. Aşama (Derin Komite Analizi):** En yüksek potansiyelli ilk **Top N** hisse seçilerek tam yapay zeka komite tartışmasından geçirilir.
-* Tarama bitiminde konsolide bir **BIST Keşif Bülteni** (`outputs/reports/BIST_SCANNER_...md`) üretilir.
+### 🔹 Çekirdek 5: Hiyerarşik Risk Paritesi (HRP) & Black-Litterman Portföy Motoru
+* **Ledoit-Wolf Shrinkage:** Örneklem kovaryans matrisindeki tahmin gürültülerini analitik olarak daraltır.
+* **Markowitz Ortalama-Varyans (MVO):** Maksimum Sharpe (Tangency) ve Global Minimum Varyans (GMV) portföyü.
+* **Hiyerarşik Risk Paritesi (HRP - Marcos Lopez de Prado):** Matris tersi almadan korelasyon ağacı kümelemesi ile istikrarlı risk dağıtımı.
+* **Black-Litterman Modeli:** Piyasa denge getirilerini ($\Pi$) yapay zeka görüşleri ($P, Q, \Omega$) ile Bayes Teoremi üzerinden birleştirir.
+* **Multi-Asset Kelly Kriteri:** Geometrik sermaye büyümesini maksimize eden fraksiyonel kaldıraç oranını hesaplar.
 
-### 🔹 Çekirdek 5: Walk-Forward Backtesting & VİOP Rollover Motoru
-* **Zaman Sızıntısız (Lookahead-Free) Rolling Window:** Model her adımda sadece o günün gerisindeki mumları görerek geçmiş periyotta işlem açar.
-* **2 Aylık VİOP Vade Sonu & Rollover Sürtünmesi:** Şubat, Nisan, Haziran, Ağustos, Ekim, Aralık vade sonu takvimine göre pozisyon taşınırken %0.15 rollover ve komisyon sürtünmesi yansıtılır.
-* **Dinamik Risk Yönetimi & İz Süren Stop:** Volatiliteye duyarlı ATR stop-loss ve trend sürme (Trailing Stop) ile kârı sonuna kadar koşturur.
-* **Wall Street Performans Metrikleri:** Sharpe Oranı, Sortino Oranı, **Kazanma Oranı (Win Rate %)**, **Kâr Faktörü (Profit Factor)**, **Maksimum Çekilme (MDD %)** ve **Alpha (α)**.
+### 🔹 Çekirdek 6: BSM Opsiyon Fiyatlama, Greeks & Dinamik Delta-Hedge
+* **Black-Scholes-Merton (1973) Analitik Opsiyon Fiyatlaması:** Temettü ve faiz entegre Avrupa tipi Call/Put fiyatları.
+* **1. ve 2. Derece Greeks:** Delta ($\Delta$), Gamma ($\Gamma$), Vega ($\mathcal{V}$), Theta ($\Theta$), Rho ($\rho$), Vanna ve Volga.
+* **Zımni Oynaklık (IV) Kök Bulucu:** Brent metoduyla piyasa opsiyon fiyatından volatiliteyi tersine çözer.
+* **Dinamik Portföy Delta-Hedging:** Spot hisse portföyünü BIST 30 Vadeli Kontratı (`F_XU030`) ile tam piyasa nötr ($\Delta$-neutral, $\beta$-hedged) hale getirir.
 
-### 🔹 Çekirdek 6: Doğrudan KAP REST Köprüsü & Çok Modlu NLP Haber Füzyonu
-* **Doğrudan KAP REST Entegrasyonu (`kap.gov.tr`):** Şirketlerin Kamuyu Aydınlatma Platformu'na gönderdiği resmi bildirimleri doğrudan REST API üzerinden çeker; fallback olarak Google News TR RSS akışını tarar.
+### 🔹 Çekirdek 7: Piyasa Mikro-Yapısı & VPIN Akış Toksisitesi
+* **Corwin-Schultz (2012) Spread Tahmincisi:** Günlük High-Low marjından efektif alış-satış makasını baz puan (bps) olarak çözer.
+* **Roll (1984) Efektif Makası & Amihud (2002) İlikidite:** 1 Milyon TL'lik emrin tahtayı kaç baz puan kaydırdığını (Kyle's Lambda) ölçer.
+* **VPIN (Volume-Synchronized Probability of Toxicity):** Kurumsal balinaların ve algoritmik botların agresif akış toksisitesini ölçer.
+* **Hacim Profili (Volume Profile):** En yoğun kurumsal hacmin gerçekleştiği Point of Control (POC), Value Area High (VAH) ve Value Area Low (VAL) seviyelerini belirler.
+
+### 🔹 Çekirdek 8: İstatistiksel Arbitraj & Eşbütünleşme (Pairs Trading)
+* **Engle-Granger 2-Aşamalı Eşbütünleşme Testi:** İki hisse arasındaki uzun dönemli denge ilişkisini sınar.
+* **Ornstein-Uhlenbeck Yarılanma Ömrü (Half-Life):** Spread'in ortalamaya dönme hızını gün cinsinden hesaplar.
+* **Spread Z-Score:** $\pm 2\sigma$ standart sapma sapmalarında Long Spread / Short Spread arbitraj sinyalleri üretir.
+
+### 🔹 Çekirdek 9: Takasbank & AKD Para Akışı Radarı
+* **Doğrudan Terminal CSV Köprüsü:** Matriks / İdealData kurum dağılım dosyalarını (`bist_data/akd/<SEMBOL>_akd.csv`) doğrudan okur.
+* **Chaikin Para Akışı (CMF - 20G) & MFI (14G):** Para girişi ve çıkışını matematiksel olarak tespit eder.
+* **İlk 5 Kurum Konsantrasyon Dengesi & Balina Skoru:** Bank of America (BofA), QNB, İş Yatırım gibi piyasa yapıcı aktörlerin akümülasyon hareketlerini puanlar.
+
+### 🔹 Çekirdek 10: Çok Modlu NLP Haber & KAP Duyarlılık Füzyonu
+* **Doğrudan KAP REST Entegrasyonu (`kap.gov.tr`):** Resmi şirket bildirimlerini ve Google News TR akışını doğrudan tarar.
 * **Finansal NLP Duyarlılık Skorlaması:** Bildirimleri analiz edip `[-1.0, +1.0]` arasında duyarlılık skoru ve `[%0, %100]` etki şiddeti üretir.
-* **Pozitif / Negatif Katalizör Tespiti:** Ciro artıran ihaleler, bedelsiz sermaye, pay geri alımı veya üretim durdurma krizlerini anında etiketler.
-* **Matematiksel Hibrit Füzyon Matrisi:**
-  ```text
-  R_fused = (1 - w_news) * R_tech + w_news * (S_news * I_impact * σ_volatility)
-  ```
-
-### 🔹 Çekirdek 7: VİOP Çift Yönlü Türev, Cost-of-Carry & SPAN Teminat Motoru
-* **Cost-of-Carry Teorik Vadeli Fiyatlama:** Taşıma maliyeti modeliyle vadeli teorik fiyatı hesaplar ($F_t = S_t [1 + (r_f - q) \frac{T-t}{365}]$).
-* **Takasbank SPAN Maktu Teminat Matrisi:** BIST 30 hisseleri için Takasbank maktu teminat tutarlarını (THYAO: 6.200 TL, ISCTR: 272 TL vb.) baz alarak kesin marjin hesaplar.
-* **Çift Yönlü Kazanç (Bi-directional Alpha):** Kaldıraçlı Long ve Kaldıraçlı Short pozisyonlarıyla her piyasa koşulunda getiri üretir.
-* **Takasbank Nemalandırma Faizi:** Boştaki nakit rezervine gecelik Takasbank faizi (yıllık %45) tahakkuk ettirir.
-
-### 🔹 Çekirdek 8: Takasbank & AKD Para Akışı & Doğrudan Terminal Köprüsü
-* **Doğrudan Terminal CSV Köprüsü:** Matriks / İdealData üzerinden dışa aktarılan gerçek kurum dağılım dosyalarını (`bist_data/akd/<SEMBOL>_akd.csv`) doğrudan okur.
-* **Chaikin Para Akışı (CMF - 20G) & MFI (14G):** Hacim ağırlıklı nakit akışını ölçerek para girişi ve çıkışını matematiksel olarak tespit eder.
-* **İlk 5 Kurum Konsantrasyon Dengesi & Balina Skoru:** Bank of America (BofA), QNB Finansinvest, İş Yatırım ve Garanti BBVA gibi piyasa yapıcı aktörlerin sessiz akümülasyon veya dağıtım hareketlerini puanlar.
-* **Hacim Ağırlıklı Ortalama Fiyat (VWAP) Sapması:** Anlık fiyatın 20 günlük kurumsal maliyetlenme seviyesine (VWAP) göre iskontosunu analiz eder.
+* **Matematiksel Füzyon:** Haber skorunu teknik beklentiye dinamik olarak entegre eder ($R_{\text{fused}} = (1-w)R_{\text{tech}} + w(S_{\text{news}} I \sigma)$).
 
 ---
 
-## 🏆 Gerçekleşen Backtest Doğrulama Sonuçları (Case Studies)
-
-Sistemin geçmiş veriler üzerinde hiçbir **zaman sızıntısı olmadan (Lookahead Bias %0)** gerçekleştirdiği bağımsız test sonuçları:
-
-| Hisse Senedi | Test Periyodu | Hissenin Kendisi (Al ve Tut) | KRONOS Yapay Zekası | Üretilen Alpha (α) | Risk & Performans Metrikleri |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **FROTO.IS** (VİOP Long/Short) | **Son 12 Ay** | **-%25.28** 🔴 | **%+101.64** 🟢 | **🚀 +%126.91 ALPHA** | **Düşüşte 2x Kâr** \| PF: 2.07x \| Sortino: 4.44 |
-| **ISCTR.IS** (VİOP Long/Short) | **Son 6 Ay**  | **-%23.19** 🔴 | **%+74.78** 🟢  | **🚀 +%97.97 ALPHA**  | **Short+Long Kâr** \| PF: 3.50x \| Sharpe: 2.57 |
-| **ISCTR.IS** (Spot Defansif)   | **Son 6 Ay**  | **-%23.19** 🔴 | **%+0.83** 🟢   | **🚀 +%24.02 ALPHA**  | **Kriz Koruması** \| MDD: -%6.91 \| Kârda Kapanış |
-| **FROTO.IS** (Spot Defansif)   | **Son 12 Ay** | **-%25.28** 🔴 | **%+0.00** 🟢   | **🚀 +%25.28 ALPHA**  | **Tam Koruma** \| MDD: -%0.00 (%100 Nakit) |
-| **ASELS.IS** (Trailing Stop)   | **Son 12 Ay** | **%+118.88** 🟢 | **%+50.65** 🟢  | **🛡️ MDD: -%5.99**    | **Win Rate: %53.8** \| Sharpe: 2.03 \| PF: 3.76x |
-
-> 💡 **Öne Çıkan Başarılar (Kriz Kalkanı & Çift Yönlü Kazanç):**
-> 1. **FROTO VİOP Short Zaferi:** Hisse 1 yıl boyunca **-%25.28 çökerken**, VİOP Çift Yönlü motorumuz düşüş trendinde **Kısa Pozisyon (Short / Açığa Satış)** açarak ve Takasbank nemalandırmasıyla **100.000 TL'lik kasayı 201.635 TL'ye (+%101.64 Net Kâr)** çıkarmış ve hisseye **+%126.91 ALPHA** farkı atmıştır!
-> 2. **ISCTR VİOP Çift Yönlü Kazanç:** Bankacılık sektörü son 6 ayda **-%23.19 erirken**, VİOP motorumuz düşüş dalgalarında Short, dipten dönüşlerde Long pozisyonlar ve Takasbank nemalandırmasıyla **100.000 TL kasayı 174.777 TL'ye (+%74.78 Net Kâr)** taşımış, **3.50x Kâr Faktörü** ve **2.57 Sharpe Oranı** ile hisseye **+%97.97 ALPHA** farkı atmıştır!
-> 3. **ISCTR Spot Kriz Kalkanı:** Spot piyasada ISCTR son 6 ayda %23.19 düşerken, fine-tune edilmiş modelimiz ayı piyasasının tuzaklarından kaçınarak **kârda kalmayı başarmış (+%0.83)** ve sermayeyi sıfır kayıpla korumuştur.
-> 4. **ASELSAN Trend Koşusu:** ASELSAN'ın parabolik yükseliş rallisinde **İz Süren Stop (Trailing Stop)** motorumuz trendi erken bırakmayıp **%+50.65 net getiri**, **3.76x Kâr Faktörü** ve **2.03 Sharpe Oranı** yakalamıştır.
-
----
-
-## 💻 Kurulum ve Kullanım
-
-### 1. Kurulum
-```bash
-git clone https://github.com/ferall57/BIST100-Hybrid-AI-Quant.git
-cd BIST100-Hybrid-AI-Quant
-pip install -r requirements.txt
-```
-
-### 2. Ortam Değişkenleri (.env)
-Kök dizinde `.env` dosyası oluşturup Gemini API anahtarlarınızı girin:
-```env
-GOOGLE_API_KEY_1=AIzaSy...
-GOOGLE_API_KEY_2=AIzaSy...
-GOOGLE_API_KEY_3=AIzaSy...
-```
-
----
-
-## ⚡ Kullanım Komutları
+## 💻 Kullanım Komutları (CLI Rehberi)
 
 ### 1. Tekil Hisse Derin Komite Analizi (Quant + VİOP + AKD + Ekonometri)
 ```bash
 python main.py --analyze ISCTR.IS --days 15
 ```
 
-### 2. Takasbank & AKD Para Giriş/Çıkış Radarı
+### 2. Tam Ekonometrik Tanı & Merton Monte Carlo Raporu
 ```bash
-# Tek bir hissenin AKD ilk 5 kurum dengesi, CMF ve kurumsal balina skorunu göster
-python main.py --akd ISCTR.IS
-python main.py --akd ASELS.IS
+python main.py --econometrics ISCTR.IS --days 15
+```
 
-# BIST 30 genelini kurumsal para girişine göre tara ve sırala
+### 3. Çoklu Model Portföy Optimizasyonu (Markowitz, HRP, Black-Litterman, Kelly)
+```bash
+python main.py --portfolio-opt "THYAO.IS,ISCTR.IS,AKBNK.IS,ASELS.IS,BIMAS.IS"
+```
+
+### 4. Piyasa Mikro-Yapısı, Makas (Spread), Likidite & VPIN Toksisite Analizi
+```bash
+python main.py --microstructure ISCTR.IS
+```
+
+### 5. İstatistiksel Arbitraj & Eşbütünleşme (Pairs Trading)
+```bash
+python main.py --pairs-trade "ISCTR.IS,AKBNK.IS"
+```
+
+### 6. Black-Scholes-Merton Opsiyon Fiyatlama, Greeks & Delta-Hedge
+```bash
+python main.py --greeks ISCTR.IS --days 30
+```
+
+### 7. Takasbank & AKD Para Giriş/Çıkış Radarı
+```bash
+# Tekil hisse AKD analizi
+python main.py --akd ISCTR.IS
+
+# BIST 30 genelini kurumsal para akışına göre tara
 python main.py --akd-scan bist30 --top 15
 ```
 
-### 3. Canlı KAP ve Haber NLP Duyarlılık & Füzyon Karnesi
+### 8. VİOP Çift Yönlü Sinyal Taraması & Walk-Forward Backtest
 ```bash
-# Tek komutla hissenin anlık KAP haber duyarlılığını ve katalizörlerini puanla
-python main.py --sentiment ASELS.IS
-python main.py --sentiment FROTO.IS
-```
-
-### 4. VİOP Çift Yönlü (Long/Short) Sinyal Taraması & Backtest
-```bash
-# BIST 30 için günün Canlı Long ve Short kontrat fırsatlarını listele
+# Canlı VİOP Long/Short fırsatları
 python main.py --viop-signals --top 10
 
-# 12 Aylık Çift Yönlü VİOP Backtesti (Kaldıraç: 1.5x, Nemalandırma %45)
+# 12 Aylık VİOP Walk-Forward Backtest (Kaldıraç: 1.5x)
 python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest --viop
 ```
-
-### 4. Walk-Forward Spot Backtest & Performans Doğrulama
-```bash
-# 6 Aylık Spot Backtest (Stop-Loss %3.5, Take-Profit %8.0)
-python main.py --backtest ISCTR.IS --months 6
-```
-
-### 5. BIST 30 / 100 Otomatik Tarama (Screener)
-```bash
-# BIST 30 En İyi 5 Fırsat
-python main.py --scan bist30 --top 5 --model gemini-2.5-flash
-
-# BIST 100 Geniş Evren Taraması
-python main.py --scan bist100 --top 10 --model gemini-2.5-flash
-```
-
-### 6. BIST Veri Setlerini İndirme & Kronos Eğitimi
-```bash
-# BIST 100 verilerini indir
-python main.py --download-all --download-mode bist100
-
-# Kronos modelini BIST 100 üzerinde ince ayar (fine-tune) yap
-python main.py --train-kronos
-```
-
----
-
-## 📁 Çıktılar
-* **Komite Raporları:** `outputs/reports/<SEMBOL>_committee_report.md`
-* **Backtest Raporları:** `outputs/reports/<SEMBOL>_backtest_report.md`
-* **Sermaye Eğrileri (Equity Curve):** `outputs/charts/<SEMBOL>_backtest_equity_curve.png`
-* **Tarama Bültenleri:** `outputs/reports/BIST_SCANNER_<EVREN>_<TARIH>.md`
-* **Fiyat Projeksiyon Grafikleri:** `outputs/charts/<SEMBOL>_kronos_forecast.png`
 
 ---
 
 ## ⚠️ Yasal Uyarı (Disclaimer)
-Bu proje tamamen eğitim, araştırma ve algoritmik modelleme amacıyla geliştirilmiştir. Üretilen çıktılar, fiyat tahminleri ve komite kararları **kesinlikle doğrudan yatırım tavsiyesi (YTD) niteliği taşımaz**. Gerçek piyasalarda işlem yapmadan önce kendi araştırmanızı yapınız.
+Bu proje tamamen eğitim, akademik araştırma ve kantitatif modelleme amacıyla geliştirilmiştir. Üretilen çıktılar, fiyat projeksiyonları ve komite kararları **kesinlikle doğrudan yatırım tavsiyesi (YTD) niteliği taşımaz**.

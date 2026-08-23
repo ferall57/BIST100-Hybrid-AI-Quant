@@ -16,6 +16,7 @@ from bist_quant.bist_econometrics import BistEconometrics
 from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
 from bist_quant.bist_akd_flow import BistAkdFlowEngine
+from bist_quant.bist_microstructure import BistMarketMicrostructure
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -42,6 +43,7 @@ class BistHybridCommittee:
         self.sentiment_engine = BistSentimentEngine(gemini_model=gemini_model, temperature=0.2)
         self.viop_engine = BistViopEngine()
         self.akd_engine = BistAkdFlowEngine()
+        self.microstructure_engine = BistMarketMicrostructure()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -81,7 +83,6 @@ class BistHybridCommittee:
         ev_ebitda = _val("enterpriseToEbitda", "{:.2f}")
         roe = _val("returnOnEquity", "{:.2f}", mul=100.0, suffix="%")
         
-        # Temettü verimi: yfinance BIST hisselerinde bazen 4.36 (yüzde), bazen 0.0436 (oran) döndürür
         raw_div = info.get("dividendYield")
         div_yield = "N/A"
         if raw_div is not None and raw_div != "":
@@ -99,54 +100,45 @@ class BistHybridCommittee:
         beta = _val("beta", "{:.2f}")
         high_52 = _val("fiftyTwoWeekHigh", "{:.2f}", suffix=" TRY")
         low_52 = _val("fiftyTwoWeekLow", "{:.2f}", suffix=" TRY")
-        mcap = _cap_val(info.get("marketCap"))
-        sector = info.get("sector", "N/A")
-        industry = info.get("industry", "N/A")
+        target_mean = _val("targetMeanPrice", "{:.2f}", suffix=" TRY")
+        num_analysts = _val("numberOfAnalystOpinions", "{:.0f}", suffix=" Kurum")
+        rec_key = info.get("recommendationKey", "N/A").upper()
 
-        table = f"""| Finansal Gösterge / Rasyo | Değer | Sektör / Tanım |
-| :--- | :--- | :--- |
-| **Sektör / Endüstri** | {sector} | {industry} |
-| **F/K (Fiyat/Kazanç - P/E)** | {pe} (İleri F/K: {fwd_pe}) | Hissenin kârlılık çarpanı |
-| **PD/DD (Piyasa/Defter Değeri - P/B)** | {pb} | Özkaynak değerleme çarpanı |
-| **FD/FAVÖK (EV/EBITDA)** | {ev_ebitda} | Operasyonel nakit kârlılığı çarpanı |
-| **Özsermaye Kârlılığı (ROE)** | {roe} | Hissedar sermayesinin getiri verimi |
-| **Temettü Verimi (Dividend Yield)** | {div_yield} | Yıllık kâr payı dağıtım oranı |
-| **Piyasa Değeri (Market Cap)** | {mcap} | Toplam şirket büyüklüğü |
-| **52 Haftalık Zirve / Dip** | {high_52} / {low_52} | Yıllık fiyat salınım koridoru |
-| **Beta (Piyasa Hassasiyeti)** | {beta} | BIST 100 korelasyon katsayısı |"""
-        return table
+        market_cap = _cap_val(info.get("marketCap"))
+        total_rev = _cap_val(info.get("totalRevenue"))
+        net_inc = _cap_val(info.get("netIncomeToCommon"))
+        ebitda_val = _cap_val(info.get("ebitda"))
+        total_cash = _cap_val(info.get("totalCash"))
+        total_debt = _cap_val(info.get("totalDebt"))
+
+        txt = f"""* **Piyasa Değeri (Market Cap):** {market_cap} | **Fiyat / Kazanç (F/K):** {pe} (İleri F/K: {fwd_pe})
+* **Piyasa Değeri / Defter Değeri (PD/DD):** {pb} | **FD / FAVÖK (EV/EBITDA):** {ev_ebitda}
+* **Özkaynak Kârlılığı (ROE):** {roe} | **Temettü Verimi (Dividend Yield):** {div_yield}
+* **Finansal Büyüklükler:** Yıllık Ciro: {total_rev} | Net Kâr: {net_inc} | FAVÖK: {ebitda_val}
+* **Nakit & Borçluluk:** Toplam Nakit: {total_cash} | Toplam Finansal Borç: {total_debt}
+* **52 Haftalık Fiyat Aralığı:** {low_52} - {high_52} | **Hisse Betası (BIST 100):** {beta}
+* **Konsensüs Analist Hedef Fiyatı:** {target_mean} ({num_analysts} analist) | **Konsensüs Tavsiyesi:** {rec_key}
+"""
+        return txt
 
     def _fetch_macro_indicators(self) -> str:
-        """BIST 100 endeks trendi ve USD/TRY kurunu canlı çekerek özetler."""
+        """Türkiye ve küresel makro göstergeleri (USD/TRY, Gösterge Faiz, BIST 100, Brent Petrol, Ons Altın) derler."""
         try:
-            df_xu = yf.Ticker("XU100.IS").history(period="5d")
-            df_usd = yf.Ticker("TRY=X").history(period="5d")
-            
-            xu_close = "N/A"
-            xu_change = "N/A"
-            if not df_xu.empty and len(df_xu) >= 2:
-                c1 = df_xu["Close"].iloc[-1]
-                c0 = df_xu["Close"].iloc[-2]
-                chg = ((c1 - c0) / c0) * 100.0
-                xu_close = f"{c1:,.2f}"
-                xu_change = f"%{chg:+.2f}"
-            elif not df_xu.empty:
-                xu_close = f"{df_xu['Close'].iloc[-1]:,.2f}"
-                
-            usd_close = "N/A"
-            usd_change = "N/A"
-            if not df_usd.empty and len(df_usd) >= 2:
-                u1 = df_usd["Close"].iloc[-1]
-                u0 = df_usd["Close"].iloc[-2]
-                chg_u = ((u1 - u0) / u0) * 100.0
-                usd_close = f"{u1:.4f} TRY"
-                usd_change = f"%{chg_u:+.2f}"
-            elif not df_usd.empty:
-                usd_close = f"{df_usd['Close'].iloc[-1]:.4f} TRY"
+            usd = yf.Ticker("USDTRY=X").history(period="5d")
+            brent = yf.Ticker("BZ=F").history(period="5d")
+            gold = yf.Ticker("GC=F").history(period="5d")
+            xu100 = yf.Ticker("XU100.IS").history(period="5d")
 
-            macro_text = f"""* **BIST 100 Endeksi (XU100):** {xu_close} puan (Son Gün Değişimi: {xu_change})
-* **Dolar / TL Kuru (USD/TRY):** {usd_close} (Son Gün Değişimi: {usd_change})"""
-            return macro_text
+            usd_try = f"{float(usd['Close'].iloc[-1]):.4f}" if not usd.empty else "N/A"
+            brent_p = f"{float(brent['Close'].iloc[-1]):.2f} USD" if not brent.empty else "N/A"
+            gold_p = f"{float(gold['Close'].iloc[-1]):.2f} USD" if not gold.empty else "N/A"
+            xu100_p = f"{float(xu100['Close'].iloc[-1]):,.2f}" if not xu100.empty else "N/A"
+
+            return f"""* **USD/TRY Kuru:** {usd_try}
+* **TCMB Politika / Gösterge Faizi (Varsayılan):** %50.00 (Gecelik Fonlama: ~%53.00)
+* **BIST 100 Endeksi:** {xu100_p}
+* **Brent Petrol (Varil):** {brent_p} | **Ons Altın (USD):** {gold_p}
+"""
         except Exception as e:
             return f"* Makro göstergeler çekilemedi: {e}"
 
@@ -169,7 +161,6 @@ class BistHybridCommittee:
         except Exception:
             company_name = ticker
 
-        # Finansal rasyoları ve makro verileri hazırla
         financial_ratios = self._format_financial_ratios(info)
         macro_indicators = self._fetch_macro_indicators()
 
@@ -178,6 +169,7 @@ class BistHybridCommittee:
         recent_history = "Veri okunamadı"
         econometric_report = "Ekonometrik veri hazır değil."
         akd_report = "AKD ve Para Akışı verisi hazır değil."
+        microstructure_report = "Mikro-yapı verisi hazır değil."
         
         if os.path.exists(raw_csv):
             df = pd.read_csv(raw_csv)
@@ -191,6 +183,10 @@ class BistHybridCommittee:
                 akd_report = self.akd_engine.get_akd_summary_text(ticker, df)
             except Exception as e_akd:
                 akd_report = f"AKD para akışı analiz hatası: {e_akd}"
+            try:
+                microstructure_report = self.microstructure_engine.generate_microstructure_report(df, ticker)
+            except Exception as e_ms:
+                microstructure_report = f"Mikro-yapı analiz hatası: {e_ms}"
             
         # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
         print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
@@ -210,8 +206,6 @@ class BistHybridCommittee:
         # 2. Aşama: Analistler (Temel, NLP Sentiment, AKD & Teknik-Makro)
         print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment, AKD Para Akışı ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
         
-        # 2.1 Canlı NLP KAP ve Haber Duyarlılık Analizi
-        print(f"🌍 [CANLI BAĞLANTI] {ticker} için Canlı KAP ve Finans Haberleri NLP ile skorlanıyor...")
         sentiment_data = self.sentiment_engine.analyze_sentiment(ticker)
         
         live_news = f"""* **NLP Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} ({sentiment_data.get('sentiment_label', 'NÖTR')}) | Etki Şiddeti: %{sentiment_data.get('impact_intensity', 0.0)*100:.0f}
@@ -281,7 +275,7 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPISI (Fix 5.1 - LLM Bullish Bias Guardrail)
+        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPISI
         mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
         akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
         
@@ -296,15 +290,18 @@ class BistHybridCommittee:
 > Yapay zeka delegasyonu yükseliş yönlü tezler sunsa da; **matematiksel risk eşikleri** ({veto_reason}) nedeniyle komite kararı programatik olarak **"TUT / GÖZLEMLE (Beklemede Kal)"** seviyesine revize edilmiştir.
 """ + executive_verdict
 
-        # 5. VİOP Türev & Dinamik SPAN Teminat Hesaplaması (Fix 4.3 & 4.1)
+        # 5. VİOP Türev & Dinamik SPAN Teminat & BSM Greeks Hesaplaması
         contract_code = self.viop_engine.get_contract_code(ticker)
         viop_pos = self.viop_engine.calculate_position_size(capital=100000.0, spot_price=current_price, ticker=ticker, leverage=1.5)
         theo_futures_p = self.viop_engine.calculate_theoretical_futures_price(spot_price=current_price, days_to_expiry=30)
         
+        strike_atm = round(current_price * 1.05, 2)
+        greeks = self.viop_engine.calculate_bsm_option_greeks(spot=current_price, strike=strike_atm, days_to_expiry=30, volatility=0.32)
+        
         # 6. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP Cost-of-Carry Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate
+**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP BSM Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate
 
 ---
 
@@ -312,17 +309,25 @@ class BistHybridCommittee:
 
 ---
 
-## ⚡ VİOP (VADELİ İŞLEM VE OPSİYON PİYASASI) TÜREV & HEDGE MATRİSİ
+## ⚡ VİOP (VADELİ İŞLEM VE OPSİYON PİYASASI) TÜREV & BSM GREEKS MATRİSİ
 * **VİOP Kontrat Kodu:** `{contract_code}` (1 Kontrat = 100 Pay)
 * **Spot Fiyat:** {current_price:.2f} TRY | **Teorik Vadeli Fiyat (Cost-of-Carry):** **{theo_futures_p:.2f} TRY**
 * **1 Kontrat Büyüklüğü:** {viop_pos['contract_value']:,.2f} TRY | **Takasbank Maktu SPAN Teminatı:** **{viop_pos['required_margin']/max(1, viop_pos['contracts']):,.2f} TRY / Kontrat**
 * **100.000 TL Kasa İçin Pozisyon:** {viop_pos['contracts']} Kontrat ({viop_pos['contracts']*100} Pay) | **Toplam Notional Değer:** {viop_pos['notional_value']:,.2f} TRY (Efektif Kaldıraç: {viop_pos['effective_leverage']}x)
 * **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi gecelik yıllık ~%45 bileşik faiz getirisi üretir.
-* **Ters / İz Süren Stop:** Long pozisyonlar için zirveden %4.5 aşağı, Short pozisyonlar için dipten %4.5 yukarı tepkide kâr koruma kalkanı devrededir.
+
+### 📐 Black-Scholes-Merton (BSM) 30G Opsiyon Fiyatlama & Greeks Duyarlılıkları (Strike: {strike_atm:.2f} TRY)
+* **Teorik Call Primi:** {greeks['call_price']:.3f} TRY (Delta Δ: {greeks['call_delta']:+.4f}, Theta Θ: {greeks['call_theta_daily']:.4f} TL/gün, Rho ρ: {greeks['call_rho']:+.4f})
+* **Teorik Put Primi:** {greeks['put_price']:.3f} TRY (Delta Δ: {greeks['put_delta']:+.4f}, Theta Θ: {greeks['put_theta_daily']:.4f} TL/gün, Rho ρ: {greeks['put_rho']:+.4f})
+* **Gamma (Γ):** {greeks['gamma']:.6f} | **Vega (𝒱):** {greeks['vega']:.4f} | **Vanna:** {greeks['vanna']:.6f} | **Volga:** {greeks['volga']:.6f}
 
 ---
 
 {akd_report}
+
+---
+
+{microstructure_report}
 
 ---
 
@@ -385,7 +390,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BIST Hibrit Komite Çalıştırıcı")
     parser.add_argument("--ticker", type=str, default="THYAO.IS", help="İşteklenecek BIST sembolü")
     parser.add_argument("--days", type=int, default=15, help="Kronos tahmin gün sayısı")
-    parser.add_argument("--model", type=str, default="gemini-2.5-pro", help="Gemini modeli")
+    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Gemini modeli")
     
     args = parser.parse_args()
     committee = BistHybridCommittee(gemini_model=args.model)
