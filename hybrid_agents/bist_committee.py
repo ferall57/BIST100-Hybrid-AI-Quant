@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
@@ -17,6 +18,7 @@ from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
 from bist_quant.bist_akd_flow import BistAkdFlowEngine
 from bist_quant.bist_microstructure import BistMarketMicrostructure
+from bist_quant.bist_memory import BistCommitteeMemory
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -31,7 +33,7 @@ except Exception as e:
 class BistHybridCommittee:
     """
     Kronos-Base Quant tahmini ile TradingAgents felsefesindeki çoklu yapay zeka komitesini
-    (Temel, Teknik, Boğa, Ayı ve Portföy Müdürü) buluşturan ana merkez sinir ağı.
+    (Temel, Teknik, Boğa, Ayı, Portföy Müdürü ve Öz-Yansıtma Hafızasını) buluşturan ana merkez sinir ağı.
     """
     def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.3):
         os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -44,6 +46,7 @@ class BistHybridCommittee:
         self.viop_engine = BistViopEngine()
         self.akd_engine = BistAkdFlowEngine()
         self.microstructure_engine = BistMarketMicrostructure()
+        self.memory_engine = BistCommitteeMemory()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -122,7 +125,7 @@ class BistHybridCommittee:
         return txt
 
     def _fetch_macro_indicators(self) -> str:
-        """Türkiye ve küresel makro göstergeleri (USD/TRY, Gösterge Faiz, BIST 100, Brent Petrol, Ons Altın) derler."""
+        """Türkiye ve küresel makro göstergeleri derler."""
         try:
             usd = yf.Ticker("USDTRY=X").history(period="5d")
             brent = yf.Ticker("BZ=F").history(period="5d")
@@ -187,6 +190,10 @@ class BistHybridCommittee:
                 microstructure_report = self.microstructure_engine.generate_microstructure_report(df, ticker)
             except Exception as e_ms:
                 microstructure_report = f"Mikro-yapı analiz hatası: {e_ms}"
+
+        # 🧠 Ajan Öz-Yansıtma ve Geçmiş Hafıza Brifingi
+        print(f"🧠 [HAFIZA MOTORU] {ticker} için geçmiş kararlar ve post-mortem denetimi yapılıyor...")
+        self_reflection_context = self.memory_engine.get_self_reflection_context(ticker, current_price)
             
         # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
         print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
@@ -225,7 +232,8 @@ class BistHybridCommittee:
             financial_ratios=financial_ratios,
             macro_indicators=macro_indicators,
             live_news=live_news,
-            current_date=current_date_str
+            current_date=current_date_str,
+            self_reflection_context=self_reflection_context
         )
         res_fund = self.llm.invoke(prompt_fund)
         fundamental_report = extract_text(res_fund)
@@ -237,7 +245,8 @@ class BistHybridCommittee:
             macro_indicators=macro_indicators,
             akd_report=akd_report,
             econometric_report=econometric_report,
-            kronos_report=kronos_report
+            kronos_report=kronos_report,
+            self_reflection_context=self_reflection_context
         )
         res_tech = self.llm.invoke(prompt_tech)
         technical_report = extract_text(res_tech)
@@ -247,7 +256,8 @@ class BistHybridCommittee:
         prompt_bull = BIST_BULL_RESEARCHER_PROMPT.format(
             ticker=ticker,
             fundamental_report=fundamental_report,
-            technical_report=technical_report
+            technical_report=technical_report,
+            self_reflection_context=self_reflection_context
         )
         res_bull = self.llm.invoke(prompt_bull)
         bull_thesis = extract_text(res_bull)
@@ -256,7 +266,8 @@ class BistHybridCommittee:
             ticker=ticker,
             bull_thesis=bull_thesis,
             fundamental_report=fundamental_report,
-            technical_report=technical_report
+            technical_report=technical_report,
+            self_reflection_context=self_reflection_context
         )
         res_bear = self.llm.invoke(prompt_bear)
         bear_thesis = extract_text(res_bear)
@@ -270,7 +281,8 @@ class BistHybridCommittee:
             technical_report=technical_report,
             econometric_report=econometric_report,
             bull_thesis=bull_thesis,
-            bear_thesis=bear_thesis
+            bear_thesis=bear_thesis,
+            self_reflection_context=self_reflection_context
         )
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
@@ -298,14 +310,46 @@ class BistHybridCommittee:
         strike_atm = round(current_price * 1.05, 2)
         greeks = self.viop_engine.calculate_bsm_option_greeks(spot=current_price, strike=strike_atm, days_to_expiry=30, volatility=0.32)
         
-        # 6. Dev Kapsamlı Dosyayı Derle ve Kaydet
+        # 6. Kararı Hafıza Veritabanına Kaydet (Gelecek Öz-Yansıtma İçin)
+        # Hedef fiyatları ve stop seviyelerini metinden ayrıştırma
+        t1w_match = re.search(r"1\s*Haftal[ıi]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
+        t15d_match = re.search(r"15-30\s*G[üu]nl[üu]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
+        stop_match = re.search(r"Stop-Loss.*?:\s*\[?([0-9]+\.?[0-9]*)", executive_verdict)
+        conf_match = re.search(r"G[üu]ven.*?:\s*%?\s*([0-9]+)", executive_verdict)
+        
+        t1w_val = float(t1w_match.group(2)) if t1w_match else current_price * 1.03
+        t15d_val = float(t15d_match.group(2)) if t15d_match else current_price * 1.08
+        stop_val = float(stop_match.group(1)) if stop_match else current_price * 0.96
+        conf_val = int(conf_match.group(1)) if conf_match else 75
+        verdict_type = "TUT" if veto_triggered else ("AL" if "AL" in executive_verdict.upper() else ("SAT" if "SAT" in executive_verdict.upper() else "TUT"))
+
+        self.memory_engine.record_decision(
+            ticker=ticker,
+            spot_price=current_price,
+            verdict=verdict_type,
+            confidence=conf_val,
+            target_1w=t1w_val,
+            target_15d=t15d_val,
+            stop_loss=stop_val,
+            bull_thesis_summary=bull_thesis[:250],
+            bear_thesis_summary=bear_thesis[:250],
+            cmf_score=akd_data.get("cmf_20", 0.0),
+            vwap_price=akd_data.get("vwap_20", current_price)
+        )
+
+        # 7. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP BSM Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate
+**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP BSM Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate + Episodik Öz-Yansıtma Hafızası
 
 ---
 
 {executive_verdict}
+
+---
+
+## 🧠 KOMİTE ÖZ-YANSITMA & GEÇMİŞ HAFIZA DENETİMİ
+{self_reflection_context}
 
 ---
 

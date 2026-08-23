@@ -2,7 +2,7 @@
 """
 🏛️ BIST 100 HİBRİT YAPAY ZEKA VE KANTİTATİF FİNANS SİSTEMİ
 Kronos-Base (Quant Forecasting) + TradingAgents (Multi-Agent Committee) + 
-İleri Ekonometri & Stokastik Simülasyon + VİOP BSM Greeks + HRP & Black-Litterman Portföy Optimizasyonu
+İleri Ekonometri & Stokastik Simülasyon + VİOP BSM Greeks + HRP & Black-Litterman Portföy + Öz-Yansıtma Hafızası
 """
 
 import os
@@ -32,6 +32,7 @@ from bist_quant.bist_akd_flow import BistAkdFlowEngine
 from bist_quant.bist_econometrics import BistEconometrics
 from bist_quant.bist_portfolio_opt import BistPortfolioOptimizer
 from bist_quant.bist_microstructure import BistMarketMicrostructure
+from bist_quant.bist_memory import BistCommitteeMemory
 
 def banner():
     print("""
@@ -48,6 +49,7 @@ def banner():
  [*] Çekirdek 8 : İstatistiksel Arbitraj & Eşbütünleşme (Engle-Granger Pairs Trading)
  [*] Çekirdek 9 : Takasbank & AKD Para Giriş/Çıkış Radarı (BofA & Balina Akışı)
  [*] Çekirdek 10: Çok Modlu (Multi-Modal) NLP Haber & KAP Duyarlılık Füzyon Motoru
+ [*] Çekirdek 11: Episodik Öz-Yansıtma & Recursive Sürekli Öğrenen Ajan Hafızası
  [*] Motor      : 3'lü Gemini API Akıllı Rotasyon & Deterministik Veto Kalkanı
 ================================================================================
 """)
@@ -119,13 +121,9 @@ def handle_portfolio_opt(tickers_str: str, target: str = "max_sharpe", rf: float
         optimizer = BistPortfolioOptimizer(risk_free_rate_annual=rf)
         mean_ret, cov, corr = optimizer.compute_returns_and_covariance(df_prices)
         
-        # 1. Markowitz
         mvo_res = optimizer.optimize_markowitz(mean_ret, cov, target=target)
-        # 2. HRP
         hrp_res = optimizer.optimize_hrp(df_prices)
-        # 3. Black-Litterman (AI Equilibrium)
         bl_res = optimizer.optimize_black_litterman(df_prices)
-        # 4. Kelly Criterion
         kelly_res = optimizer.calculate_kelly_portfolio(mean_ret, cov, fraction=0.5)
 
         print("\n" + "="*90)
@@ -228,6 +226,39 @@ def handle_greeks(ticker: str, spot: float = None, strike: float = None, days: f
         print("="*85 + "\n")
     except Exception as e:
         print(f"\n[GREEKS HATASI] {e}")
+
+def handle_memory(ticker: str):
+    """Seçilen hissenin komite hafıza geçmişini ve öz-yansıtma denetimini görüntüler."""
+    if not ticker:
+        print("[HATA] Lütfen hafıza geçmişi incelenecek BIST sembolü girin. Örn: '--memory ISCTR.IS'")
+        return
+    try:
+        t = ticker if ticker.endswith(".IS") else f"{ticker}.IS"
+        download_ticker_data(t, period="1mo", interval="1d", save_dir=RAW_DATA_DIR)
+        csv_file = os.path.join(RAW_DATA_DIR, f"{t}_1d.csv")
+        current_p = 12.38
+        if os.path.exists(csv_file):
+            df = pd.read_csv(csv_file)
+            current_p = float(df["close"].iloc[-1])
+
+        memory = BistCommitteeMemory()
+        evals = memory.evaluate_past_decisions(t, current_price=current_p)
+        
+        print("\n" + "="*85)
+        print(f"🧠 KOMİTE EPİSODİK HAFIZA VE ÖZ-YANSITMA KAYITLARI: [{t.upper()}] (Canlı: {current_p:.2f} TRY)")
+        print("="*85)
+        if not evals:
+            print(f"  ℹ️ [{t}] için henüz kaydedilmiş geçmiş analiz kararı bulunmuyor.")
+        else:
+            for idx, e in enumerate(evals, 1):
+                print(f"  📌 Kayıt #{idx} | Tarih: {e['entry_date']} | Giriş Fiyatı: {e['entry_price']:.2f} TRY | Karar: {e['verdict']}")
+                print(f"     • Gerçekleşen Getiri : %{e['actual_return_pct']:+.2f} ({e['current_price']:.2f} TRY)")
+                print(f"     • Post-Mortem Notu   : {e['evaluation_note']}")
+                print("-" * 85)
+        print(memory.get_self_reflection_context(t, current_price=current_p))
+        print("="*85 + "\n")
+    except Exception as e:
+        print(f"\n[HAFIZA HATASI] {e}")
 
 def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.2):
     try:
@@ -383,6 +414,7 @@ def main():
     parser.add_argument("--microstructure", type=str, metavar="SEMBOL", help="Seçilen hissede Corwin-Schultz Spread, Roll Spread, Amihud, VPIN ve Hacim Profili analizini çalıştır")
     parser.add_argument("--pairs-trade", type=str, metavar="SEMBOL1,SEMBOL2", help="İki hisse arasında Engle-Granger Eşbütünleşme, Hedge Oranı, Z-Score ve Half-Life hesapla")
     parser.add_argument("--greeks", type=str, metavar="SEMBOL", help="Seçilen hissede BSM Opsiyon Fiyatlama, Greeks ve Delta-Hedge matrisini hesapla")
+    parser.add_argument("--memory", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş komite kararlarını, gerçekleşen getirileri ve öz-yansıtma denetimini göster")
     parser.add_argument("--sentiment", type=str, metavar="SEMBOL", help="Seçilen hissede Canlı KAP ve Haber NLP Duyarlılık analizini çalıştır")
     parser.add_argument("--akd", type=str, metavar="SEMBOL", help="Seçilen hissede Takasbank & AKD Para Giriş/Çıkış ve Balina analizini çalıştır")
     parser.add_argument("--akd-scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini Kurumsal Balina Para Akışına göre tara")
@@ -429,6 +461,8 @@ def main():
         handle_pairs_trade(args.pairs_trade)
     if args.greeks:
         handle_greeks(args.greeks, days=args.days)
+    if args.memory:
+        handle_memory(args.memory)
     if args.sentiment:
         handle_sentiment(args.sentiment, model=args.model)
     if args.akd:

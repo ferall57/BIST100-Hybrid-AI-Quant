@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "created_at": "2026-08-23T16:12:33.461985",
+    "description": "KRONOS Komite Karar ve Öz-Yansıtma Hafıza Veritabanı",
+    "version": "1.0.0"
+  },
+  "agent_reputation": {
+    "bull_analyst": {
+      "correct": 0,
+      "total": 0,
+      "weight": 1.0
+    },
+    "bear_analyst": {
+      "correct": 0,
+      "total": 0,
+      "weight": 1.0
+    },
+    "technical_analyst": {
+      "correct": 0,
+      "total": 0,
+      "weight": 1.0
+    }
+  },
+  "history": [
+    {
+      "record_id": "ISCTR_20260823_161233",
+      "ticker": "ISCTR",
+      "full_ticker": "ISCTR.IS",
+      "date": "2026-08-15 10:00:00",
+      "spot_price": 12.52,
+      "verdict": "AL",
+      "confidence": 85,
+      "target_1w": 13.15,
+      "target_15d": 13.65,
+      "stop_loss": 12.1,
+      "bull_thesis_summary": "BofA yabancı takas artışı ve 12.45 VWAP desteği",
+      "bear_thesis_summary": "Bankacılık marj baskısı ve CMF negatifliği",
+      "cmf_score": -0.176,
+      "vwap_price": 12.45,
+      "evaluated": true,
+      "evaluation_result": {
+        "record_id": "ISCTR_20260823_161233",
+        "entry_date": "2026-08-15 10:00:00",
+        "days_passed": 8,
+        "entry_price": 12.52,
+        "current_price": 12.390000343322754,
+        "actual_return_pct": -1.04,
+        "verdict": "AL",
+        "is_success": false,
+        "bull_validated": false,
+        "bear_validated": true,
+        "evaluation_note": "🟡 HEDEF SAPMASI: Fiyat beklenen yükselişi yapamadı (%-1.04). Ayı baskısı teyit edildi."
+      }
+    },
+    {
+      "record_id": "ISCTR_20260823_161622",
+      "ticker": "ISCTR",
+      "full_ticker": "ISCTR.IS",
+      "date": "2026-08-23 16:16:22",
+      "spot_price": 12.39,
+      "verdict": "TUT",
+      "confidence": 75,
+      "target_1w": 12.76,
+      "target_15d": 13.38,
+      "stop_loss": 11.89,
+      "bull_thesis_summary": "Değerli Komite Üyeleri, \n\nGeçmiş analizimizdeki %1.04’lük ufak sapmayı ve Ayı analistinin kısa vadeli temkinli duruşunu büyük bir saygıyla not ettim. Ancak bir **BOĞA** araştırmacısının görevi, dikiz aynasına bakıp frene basmak değil; sisli havada yo",
+      "bear_thesis_summary": "Değerli Komite Üyeleri ve \"Yay gerildi, fırlayacak\" masallarıyla perakende yatırımcıyı uçuruma sürükleyen Boğa Araştırmacısı;\n\nÖncelikle dikiz aynasına bakmayı reddeden Boğa kampına küçük bir matematik dersi verelim: **Geçmiş analizimizdeki %1.04'lük",
+      "cmf_score": -0.182,
+      "vwap_price": 12.39,
+      "evaluated": false,
+      "evaluation_result": null
+    }
+  ]
+}
