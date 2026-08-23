@@ -11,6 +11,8 @@ from hybrid_agents.prompts import (
     BIST_TECHNICAL_MACRO_PROMPT,
     BIST_BULL_RESEARCHER_PROMPT,
     BIST_BEAR_RESEARCHER_PROMPT,
+    BIST_BULL_REBUTTAL_PROMPT,
+    BIST_BEAR_REBUTTAL_PROMPT,
     BIST_PORTFOLIO_MANAGER_PROMPT
 )
 from bist_quant.bist_econometrics import BistEconometrics
@@ -28,12 +30,13 @@ try:
     QUANT_AVAILABLE = True
 except Exception as e:
     QUANT_AVAILABLE = False
-    print(f"[UYARI] BistKronosQuant motoru bağlanamadi: {e}")
+    print(f"[UYARI] BistKronosQuant motoru bağlanamadı: {e}")
 
 class BistHybridCommittee:
     """
-    Kronos-Base Quant tahmini ile TradingAgents felsefesindeki çoklu yapay zeka komitesini
-    (Temel, Teknik, Boğa, Ayı, Portföy Müdürü ve Öz-Yansıtma Hafızasını) buluşturan ana merkez sinir ağı.
+    Kronos-Base Quant tahmini ile TradingAgents çoklu yapay zeka komitesini
+    (Temel, Teknik, 2 Turlu Boğa/Ayı Münazarası, Baş Portföy Müdürü ve Öz-Yansıtma Hafızasını)
+    buluşturan kurumsal yatırım yönetim motoru.
     """
     def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.3):
         os.makedirs(REPORTS_DIR, exist_ok=True)
@@ -191,8 +194,8 @@ class BistHybridCommittee:
             except Exception as e_ms:
                 microstructure_report = f"Mikro-yapı analiz hatası: {e_ms}"
 
-        # 🧠 Ajan Öz-Yansıtma ve Geçmiş Hafıza Brifingi
-        print(f"🧠 [HAFIZA MOTORU] {ticker} için geçmiş kararlar ve post-mortem denetimi yapılıyor...")
+        # 🧠 Ajan Öz-Yansıtma ve Zaman Duyarlı Geçmiş Hafıza Brifingi
+        print(f"🧠 [HAFIZA MOTORU] {ticker} için geçmiş kararlar ve zaman duyarlı post-mortem denetimi yapılıyor...")
         self_reflection_context = self.memory_engine.get_self_reflection_context(ticker, current_price)
             
         # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
@@ -251,37 +254,61 @@ class BistHybridCommittee:
         res_tech = self.llm.invoke(prompt_tech)
         technical_report = extract_text(res_tech)
         
-        # 3. Aşama: Boğa - Ayı Tartışması (The Debate)
-        print(f"⚔️ [AŞAMA 3/4] Boğa (Bull) ve Ayı (Bear) Yapay Zekaları Masada Tartışıyor...")
-        prompt_bull = BIST_BULL_RESEARCHER_PROMPT.format(
+        # 3. Aşama: ⚔️ 2 TURLU ÇOKLU AJAN DİYALEKTİK MÜNAZARASI (THE 2-ROUND DEBATE)
+        print(f"⚔️ [AŞAMA 3/4] 2 TURLU DİYALEKTİK BOĞA vs AYI MÜNAZARASI BAŞLADI...")
+        
+        # 1. Tur: Açılış Tezleri
+        print(f"  • [1. Tur] Boğa Açılış Tezi Sunuluyor...")
+        prompt_bull_r1 = BIST_BULL_RESEARCHER_PROMPT.format(
             ticker=ticker,
             fundamental_report=fundamental_report,
             technical_report=technical_report,
             self_reflection_context=self_reflection_context
         )
-        res_bull = self.llm.invoke(prompt_bull)
-        bull_thesis = extract_text(res_bull)
+        res_bull_r1 = self.llm.invoke(prompt_bull_r1)
+        bull_opening = extract_text(res_bull_r1)
         
-        prompt_bear = BIST_BEAR_RESEARCHER_PROMPT.format(
+        print(f"  • [1. Tur] Ayı Kontra-Tezi Sunuluyor...")
+        prompt_bear_r1 = BIST_BEAR_RESEARCHER_PROMPT.format(
             ticker=ticker,
-            bull_thesis=bull_thesis,
+            bull_thesis=bull_opening,
             fundamental_report=fundamental_report,
             technical_report=technical_report,
             self_reflection_context=self_reflection_context
         )
-        res_bear = self.llm.invoke(prompt_bear)
-        bear_thesis = extract_text(res_bear)
+        res_bear_r1 = self.llm.invoke(prompt_bear_r1)
+        bear_opening = extract_text(res_bear_r1)
+
+        # 2. Tur: Çapraz Savunma & Çürütme (Rebuttal Round)
+        print(f"  • [2. Tur] Boğa Çapraz Savunması (Rebuttal) Yapılıyor...")
+        prompt_bull_r2 = BIST_BULL_REBUTTAL_PROMPT.format(
+            ticker=ticker,
+            bull_opening=bull_opening,
+            bear_opening=bear_opening
+        )
+        res_bull_r2 = self.llm.invoke(prompt_bull_r2)
+        bull_rebuttal = extract_text(res_bull_r2)
+
+        print(f"  • [2. Tur] Ayı Nihai Meydan Okuması (Counter-Rebuttal) Yapılıyor...")
+        prompt_bear_r2 = BIST_BEAR_REBUTTAL_PROMPT.format(
+            ticker=ticker,
+            bull_rebuttal=bull_rebuttal
+        )
+        res_bear_r2 = self.llm.invoke(prompt_bear_r2)
+        bear_rebuttal = extract_text(res_bear_r2)
         
-        # 4. Aşama: Portföy Yönetim Müdürü Kararı
-        print(f"🏆 [AŞAMA 4/4] Baş Portföy Müdürü (Executive Manager) Nihai Kararı Açıklıyor...")
+        # 4. Aşama: Portföy Yönetim Müdürü Hakem Kararı
+        print(f"🏆 [AŞAMA 4/4] Baş Portföy Müdürü (Executive Manager) 2 Turlu Münazarayı Yargılıyor...")
         prompt_mgr = BIST_PORTFOLIO_MANAGER_PROMPT.format(
             ticker=ticker,
             current_price=current_price,
             fundamental_report=fundamental_report,
             technical_report=technical_report,
             econometric_report=econometric_report,
-            bull_thesis=bull_thesis,
-            bear_thesis=bear_thesis,
+            bull_opening=bull_opening,
+            bear_opening=bear_opening,
+            bull_rebuttal=bull_rebuttal,
+            bear_rebuttal=bear_rebuttal,
             self_reflection_context=self_reflection_context
         )
         res_mgr = self.llm.invoke(prompt_mgr)
@@ -311,7 +338,6 @@ class BistHybridCommittee:
         greeks = self.viop_engine.calculate_bsm_option_greeks(spot=current_price, strike=strike_atm, days_to_expiry=30, volatility=0.32)
         
         # 6. Kararı Hafıza Veritabanına Kaydet (Gelecek Öz-Yansıtma İçin)
-        # Hedef fiyatları ve stop seviyelerini metinden ayrıştırma
         t1w_match = re.search(r"1\s*Haftal[ıi]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
         t15d_match = re.search(r"15-30\s*G[üu]nl[üu]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
         stop_match = re.search(r"Stop-Loss.*?:\s*\[?([0-9]+\.?[0-9]*)", executive_verdict)
@@ -331,8 +357,8 @@ class BistHybridCommittee:
             target_1w=t1w_val,
             target_15d=t15d_val,
             stop_loss=stop_val,
-            bull_thesis_summary=bull_thesis[:250],
-            bear_thesis_summary=bear_thesis[:250],
+            bull_thesis_summary=bull_rebuttal[:250],
+            bear_thesis_summary=bear_rebuttal[:250],
             cmf_score=akd_data.get("cmf_20", 0.0),
             vwap_price=akd_data.get("vwap_20", current_price)
         )
@@ -340,7 +366,7 @@ class BistHybridCommittee:
         # 7. Dev Kapsamlı Dosyayı Derle ve Kaydet
         full_dossier = f"""# 🏛️ BIST 100 HİBRİT YAPAY ZEKA KOMİTE RAPORU
 **Tarih:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} | **Sembol:** {ticker} | **Şirket:** {company_name}
-**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP BSM Motoru + Takasbank AKD Köprüsü + Gemini Rotational Multi-Agent Debate + Episodik Öz-Yansıtma Hafızası
+**Aktif Model:** Kronos-Base Quant + Merton Jump Diffusion & GARCH + VİOP BSM Motoru + Takasbank AKD Köprüsü + 2 Turlu Diyalektik Münazara + Episodik Öz-Yansıtma Hafızası
 
 ---
 
@@ -350,6 +376,28 @@ class BistHybridCommittee:
 
 ## 🧠 KOMİTE ÖZ-YANSITMA & GEÇMİŞ HAFIZA DENETİMİ
 {self_reflection_context}
+
+---
+
+## ⚔️ 2 TURLU BOĞA vs AYI DİYALEKTİK MÜNAZARA TUTANAĞI
+
+### 🐂 1. Tur: Boğa Açılış Tezi
+{bull_opening}
+
+---
+
+### 🐻 1. Tur: Ayı Kontra-Tezi
+{bear_opening}
+
+---
+
+### 🐂 2. Tur: Boğa Çapraz Savunması & Riskleri Çürütme (Rebuttal)
+{bull_rebuttal}
+
+---
+
+### 🐻 2. Tur: Ayı Nihai Karşı Atağı & Meydan Okuması (Counter-Rebuttal)
+{bear_rebuttal}
 
 ---
 
@@ -411,16 +459,6 @@ class BistHybridCommittee:
 
 ### 📈 2. Teknik ve Makroekonomi Raporu
 {technical_report}
-
----
-
-### 🐂 3. Boğa (Bull) Araştırmacısı Savunması
-{bull_thesis}
-
----
-
-### 🐻 4. Ayı (Bear) Araştırmacısı Eleştiri ve Riskler
-{bear_thesis}
 """
         save_file = os.path.join(REPORTS_DIR, f"{ticker.replace('.', '_')}_committee_report.md")
         with open(save_file, "w", encoding="utf-8") as f:

@@ -26,15 +26,15 @@
       "record_id": "ISCTR_20260823_161622",
       "ticker": "ISCTR",
       "full_ticker": "ISCTR.IS",
-      "date": "2026-08-23 16:16:22",
+      "date": "2026-08-23 16:24:31",
       "spot_price": 12.39,
       "verdict": "TUT",
-      "confidence": 78,
-      "target_1w": 12.45,
-      "target_15d": 12.8,
-      "stop_loss": 12.35,
-      "bull_thesis_summary": "Faiz indirimi beklentisi ve iştirak portföyü",
-      "bear_thesis_summary": "Rekor hacimde tıkanma (churning) ve CMF -0.182 para çıkışı",
+      "confidence": 75,
+      "target_1w": 12.76,
+      "target_15d": 13.38,
+      "stop_loss": 11.89,
+      "bull_thesis_summary": "Değerli Komite Üyeleri,\n\nAyı Araştırmacısı dostumuzun her zamanki karamsar ve geçmiş veriye odaklı (backward-looking) analizini dinledik. Kendisi, finansal teorileri ve korku senaryolarını ustalıkla harmanlayarak bir \"çöküş\" tablosu çizmeye çalışsa d",
+      "bear_thesis_summary": "Değerli Komite Üyeleri,\n\nBoğa Araştırmacısı dostumuzun pembe gözlüklerle süslediği, perakende yatırımcıyı heyecanlandıracak ancak kurumsal portföy yöneticilerini felakete sürükleyecek \"aşırı iyimser\" savunmasını dinledik. Kendisi, finansal mühendisli",
       "cmf_score": -0.182,
       "vwap_price": 12.39,
       "status": "ACTIVE_IN_PROGRESS",
@@ -42,7 +42,7 @@
       "evaluation_result": {
         "record_id": "ISCTR_20260823_161622",
         "entry_date": "2026-08-23 16:16:22",
-        "hours_passed": 0.0,
+        "hours_passed": 0.1,
         "days_passed": 0.0,
         "is_mature": false,
         "status": "IN_PROGRESS_FRESH",
@@ -53,7 +53,7 @@
         "is_success": false,
         "bull_validated": false,
         "bear_validated": false,
-        "evaluation_note": "⏳ AKTİF TAKİPTE (2 dakika önce üretildi): Vadesi henüz dolmadı. Anlık Fiyat: 12.39 TRY (Giriş: 12.39 TRY, Getiri: %+0.00). Hedef/stop seviyeleri izleniyor."
+        "evaluation_note": "⏳ AKTİF TAKİPTE (5 dakika önce üretildi): Vadesi henüz dolmadı. Anlık Fiyat: 12.39 TRY (Giriş: 12.39 TRY, Getiri: %+0.00). Hedef/stop seviyeleri izleniyor."
       }
     }
   ]
