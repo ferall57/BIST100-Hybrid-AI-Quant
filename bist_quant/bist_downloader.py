@@ -14,7 +14,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from bist_quant.bist_100_tickers import get_tickers
 
-RAW_DATA_DIR = os.path.join("bist_data", "raw")
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+RAW_DATA_DIR = os.path.join(ROOT_DIR, "bist_data", "raw")
 
 def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d", save_dir: str = RAW_DATA_DIR):
     """
@@ -26,11 +27,15 @@ def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d",
     file_path = os.path.join(save_dir, f"{ticker}_{interval}.csv")
     
     try:
-        # Yahoo Finance üzerinden çek
-        df = yf.download(ticker, period=period, interval=interval, progress=False)
+        # 1. Öncelikli olarak en güncel canlı veriyi getiren Ticker.history kullan
+        t_obj = yf.Ticker(ticker)
+        df = t_obj.history(period=period, interval=interval, auto_adjust=False)
         
-        if df.empty or len(df) < 20:
-            # Yetersiz veri (örn. yeni halka arz veya hacimsiz sembol)
+        # Eğer boş geldiyse yf.download ile yedek dene
+        if df is None or df.empty or len(df) < 1:
+            df = yf.download(ticker, period=period, interval=interval, progress=False)
+        
+        if df is None or df.empty or len(df) < 1:
             return ticker, False, "Yetersiz veya boş veri seti"
             
         # Önce index'i sıfırla (Date / Datetime sütuna dönüşsün)
@@ -68,8 +73,13 @@ def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d",
         final_cols = ["timestamps", "open", "high", "low", "close", "volume", "amount"]
         df = df[final_cols].sort_values("timestamps").reset_index(drop=True)
         
-        # CSV kaydet
-        df.to_csv(file_path, index=False)
+        # Atomik CSV kaydet (Yarış koşulu ve bozuk okuma kalkanı)
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", dir=save_dir, delete=False, encoding="utf-8", suffix=".csv") as tf:
+            df.to_csv(tf.name, index=False)
+            temp_name = tf.name
+        os.replace(temp_name, file_path)
+        
         return ticker, True, f"{len(df)} mum kaydedildi -> {file_path}"
         
     except Exception as e:

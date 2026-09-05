@@ -230,15 +230,18 @@ class BistPortfolioOptimizer:
                 P[row_idx, col_idx] = 1.0
                 Q[row_idx] = investor_views[vt]
 
-            # He & Litterman (1999) Omega diyagonal matrisi: Omega = diag(P * (tau * Sigma) * P^T)
-            tau_Sigma = tau * Sigma.values
-            Omega = np.diag(np.diag(np.dot(P, np.dot(tau_Sigma, P.T))))
+            # Ridge Regülarizasyonu ile Tekil Matris (Singular Matrix) Çökmesini Önleme
+            ridge_eye_n = np.eye(n) * 1e-5
+            ridge_eye_k = np.eye(k) * 1e-5
+            
+            tau_Sigma_reg = tau_Sigma + ridge_eye_n
+            Omega_reg = Omega + ridge_eye_k
 
             # Bayesyen Formülü: E(R)_BL = [(tau*Sigma)^-1 + P^T * Omega^-1 * P]^-1 * [(tau*Sigma)^-1 * Pi + P^T * Omega^-1 * Q]
-            inv_tau_Sigma = np.linalg.inv(tau_Sigma)
-            inv_Omega = np.linalg.inv(Omega)
+            inv_tau_Sigma = np.linalg.inv(tau_Sigma_reg)
+            inv_Omega = np.linalg.inv(Omega_reg)
 
-            M_inv = np.linalg.inv(inv_tau_Sigma + np.dot(P.T, np.dot(inv_Omega, P)))
+            M_inv = np.linalg.inv(inv_tau_Sigma + np.dot(P.T, np.dot(inv_Omega, P)) + ridge_eye_n)
             mu_BL = np.dot(M_inv, (np.dot(inv_tau_Sigma, Pi) + np.dot(P.T, np.dot(inv_Omega, Q))))
             Sigma_BL = Sigma.values + M_inv
         else:
@@ -247,11 +250,12 @@ class BistPortfolioOptimizer:
 
         # Optimal Ağırlıklar: w_BL = (delta * Sigma_BL)^-1 * mu_BL
         try:
-            inv_Sigma_BL = np.linalg.inv(delta * Sigma_BL)
+            inv_Sigma_BL = np.linalg.inv((delta * Sigma_BL) + np.eye(n) * 1e-5)
             raw_weights = np.dot(inv_Sigma_BL, mu_BL)
             # Long-only ve bütçe kısıtı normalizasyonu
             w_bl = np.clip(raw_weights, 0.0, None)
-            w_bl = w_bl / np.sum(w_bl)
+            sum_w = np.sum(w_bl)
+            w_bl = (w_bl / sum_w) if sum_w > 0 else w_mkt
         except Exception:
             w_bl = w_mkt
 

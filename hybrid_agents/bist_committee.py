@@ -21,6 +21,11 @@ from bist_quant.bist_viop import BistViopEngine
 from bist_quant.bist_akd_flow import BistAkdFlowEngine
 from bist_quant.bist_microstructure import BistMarketMicrostructure
 from bist_quant.bist_memory import BistCommitteeMemory
+from bist_quant.bist_price_action import BistPriceActionEngine
+from bist_quant.bist_index_gatekeeper import BistIndexGatekeeper
+from bist_quant.bist_kap_scraper import BistKapScraper
+from bist_quant.bist_trade_memory import BistTradeMemory
+from hybrid_agents.context_firewall import ContextFirewall
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -38,7 +43,7 @@ class BistHybridCommittee:
     (Temel, Teknik, 2 Turlu Boğa/Ayı Münazarası, Baş Portföy Müdürü ve Öz-Yansıtma Hafızasını)
     buluşturan kurumsal yatırım yönetim motoru.
     """
-    def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.3):
+    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.3):
         os.makedirs(REPORTS_DIR, exist_ok=True)
         print("🏛️ BIST Hibrit Yapay Zeka Komitesi Toplanıyor...")
         
@@ -50,6 +55,11 @@ class BistHybridCommittee:
         self.akd_engine = BistAkdFlowEngine()
         self.microstructure_engine = BistMarketMicrostructure()
         self.memory_engine = BistCommitteeMemory()
+        self.price_action_engine = BistPriceActionEngine()
+        self.gatekeeper_engine = BistIndexGatekeeper()
+        self.kap_scraper = BistKapScraper()
+        self.trade_memory = BistTradeMemory()
+        self.firewall = ContextFirewall()
         
         if QUANT_AVAILABLE:
             self.quant_engine = BistKronosQuant(use_base_model=True)
@@ -180,7 +190,17 @@ class BistHybridCommittee:
         if os.path.exists(raw_csv):
             df = pd.read_csv(raw_csv)
             current_price = float(df["close"].iloc[-1])
-            recent_history = df.tail(5)[["timestamps", "close", "volume"]].to_string(index=False)
+            try:
+                t_obj = yf.Ticker(ticker)
+                fi = t_obj.fast_info
+                live_p = getattr(fi, 'last_price', None)
+                if live_p is not None and not np.isnan(live_p) and live_p > 0:
+                    current_price = float(live_p)
+                elif getattr(fi, 'previous_close', None) is not None:
+                    current_price = float(fi.previous_close)
+            except Exception:
+                pass
+            recent_history = self.firewall.compress_ohlcv_history(df, ticker)
             try:
                 econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
             except Exception as ee:
@@ -193,10 +213,28 @@ class BistHybridCommittee:
                 microstructure_report = self.microstructure_engine.generate_microstructure_report(df, ticker)
             except Exception as e_ms:
                 microstructure_report = f"Mikro-yapı analiz hatası: {e_ms}"
+            try:
+                price_action_report = self.price_action_engine.generate_price_action_report(df, ticker)
+            except Exception as e_pa:
+                price_action_report = f"ICT Price Action analiz hatası: {e_pa}"
+            try:
+                gatekeeper_report = self.gatekeeper_engine.generate_gatekeeper_report()
+            except Exception as e_gk:
+                gatekeeper_report = f"Endeks kapısı analiz hatası: {e_gk}"
+            try:
+                kap_report = self.kap_scraper.generate_kap_report(ticker)
+            except Exception as e_kap:
+                kap_report = f"KAP analiz hatası: {e_kap}"
+            try:
+                trade_memory_report = self.trade_memory.generate_trade_memory_report(ticker, current_setup="SSL_SWEEP_RETEST")
+            except Exception as e_tm:
+                trade_memory_report = f"TradeMemory analiz hatası: {e_tm}"
 
         # 🧠 Ajan Öz-Yansıtma ve Zaman Duyarlı Geçmiş Hafıza Brifingi
         print(f"🧠 [HAFIZA MOTORU] {ticker} için geçmiş kararlar ve zaman duyarlı post-mortem denetimi yapılıyor...")
         self_reflection_context = self.memory_engine.get_self_reflection_context(ticker, current_price)
+        if 'trade_memory_report' in locals():
+            self_reflection_context += "\n\n" + trade_memory_report
             
         # 1. Aşama: Kronos-base Quant Raporunun Çıkartılması
         print(f"📊 [AŞAMA 1/4] Kronos-base Quant Yapay Zekası Mum Formasyonlarını Hesaplıyor...")
@@ -214,18 +252,22 @@ class BistHybridCommittee:
             return str(res)
 
         # 2. Aşama: Analistler (Temel, NLP Sentiment, AKD & Teknik-Makro)
-        print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment, AKD Para Akışı ve Teknik Stratejist Ajanlar Rapor Yazıyor (Gemini Rotator)...")
+        print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment, AKD Para Akışı, ICT Price Action ve Teknik Stratejist Ajanlar Rapor Yazıyor...")
         
         sentiment_data = self.sentiment_engine.analyze_sentiment(ticker)
         
-        live_news = f"""* **NLP Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} ({sentiment_data.get('sentiment_label', 'NÖTR')}) | Etki Şiddeti: %{sentiment_data.get('impact_intensity', 0.0)*100:.0f}
+        live_news = f"""<untrusted_news_feed>
+* **NLP Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} ({sentiment_data.get('sentiment_label', 'NÖTR')}) | Etki Şiddeti: %{sentiment_data.get('impact_intensity', 0.0)*100:.0f}
 * **Pozitif Katalizör:** {'EVET 🟢' if sentiment_data.get('catalyst_detected') else 'YOK ⚪'} | **Negatif Risk:** {'EVET 🔴' if sentiment_data.get('bearish_catalyst_detected') else 'YOK ⚪'}
 * **Haber Analiz Özeti:** {sentiment_data.get('summary', '')}
 """
+        if 'kap_report' in locals():
+            live_news += "\n" + kap_report + "\n"
         if sentiment_data.get("key_catalysts"):
-            live_news += "\n**Öne Çıkan KAP ve Haber Başlıkları:**\n"
+            live_news += "**Öne Çıkan Diğer Haber Başlıkları:**\n"
             for cat in sentiment_data["key_catalysts"]:
                 live_news += f"- {cat}\n"
+        live_news += "</untrusted_news_feed>"
 
         current_date_str = datetime.now().strftime("%d %B %Y")
         
@@ -245,7 +287,8 @@ class BistHybridCommittee:
             ticker=ticker,
             current_price=current_price,
             recent_history=recent_history,
-            macro_indicators=macro_indicators,
+            gatekeeper_report=gatekeeper_report,
+            price_action_report=price_action_report,
             akd_report=akd_report,
             econometric_report=econometric_report,
             kronos_report=kronos_report,
@@ -302,6 +345,8 @@ class BistHybridCommittee:
         prompt_mgr = BIST_PORTFOLIO_MANAGER_PROMPT.format(
             ticker=ticker,
             current_price=current_price,
+            gatekeeper_report=gatekeeper_report,
+            price_action_report=price_action_report,
             fundamental_report=fundamental_report,
             technical_report=technical_report,
             econometric_report=econometric_report,
@@ -314,12 +359,22 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPISI
+        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPILARI (ENDEKS KAPISI & EKONOMETRİ)
+        veto_triggered = False
+        veto_reason = ""
+        market_regime = self.gatekeeper_engine.get_market_regime()
+        if not market_regime.get("is_long_allowed", True):
+            if "GÜÇLÜ AL" in executive_verdict.upper() or "AL (BUY)" in executive_verdict.upper() or "BUY" in executive_verdict.upper():
+                veto_triggered = True
+                veto_reason = f"XU100 Rejimi: {market_regime.get('regime')} (SMA50 Altında)"
+                executive_verdict = f"""> [!WARNING]
+> 🛡️ **BORSA WORKOUT XU100 ENDEKS KAPISI VETOSU DEVREDE:**
+> BIST 100 Endeksi ({market_regime.get('xu100_close')} TRY) 50 Günlük SMA desteğinin ({market_regime.get('sma_50')} TRY) altında ve ayı rejiminde olduğu için; hisse bazındaki alım sinyali **"TUT / VİOP HEDGE (Risk-Off)"** moduna programatik olarak çekilmiştir.
+""" + executive_verdict
+
         mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
         akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
         
-        veto_triggered = False
-        veto_reason = ""
         if mc_data.get("prob_positive", 50.0) < 38.0 and akd_data.get("cmf_20", 0.0) < -0.12:
             if "AL" in executive_verdict.upper() or "BUY" in executive_verdict.upper():
                 veto_triggered = True
@@ -338,15 +393,41 @@ class BistHybridCommittee:
         greeks = self.viop_engine.calculate_bsm_option_greeks(spot=current_price, strike=strike_atm, days_to_expiry=30, volatility=0.32)
         
         # 6. Kararı Hafıza Veritabanına Kaydet (Gelecek Öz-Yansıtma İçin)
-        t1w_match = re.search(r"1\s*Haftal[ıi]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
-        t15d_match = re.search(r"15-30\s*G[üu]nl[üu]k.*?:\s*\[?([0-9]+\.?[0-9]*)\s*-\s*([0-9]+\.?[0-9]*)", executive_verdict)
-        stop_match = re.search(r"Stop-Loss.*?:\s*\[?([0-9]+\.?[0-9]*)", executive_verdict)
+        def _extract_price(pattern, text, default_val):
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m:
+                try:
+                    num_str = m.group(1).replace(".", "").replace(",", ".")
+                    return float(num_str)
+                except Exception:
+                    pass
+            return default_val
+
+        t1w_match = re.search(r"1\s*Haftal[ıi]k.*?:\s*\[?([0-9\.,]+)\s*-\s*([0-9\.,]+)", executive_verdict)
+        t15d_match = re.search(r"(?:15-30\s*G[üu]nl[üu]k|Orta\s+Vade).*?:\s*\[?([0-9\.,]+)\s*-\s*([0-9\.,]+)", executive_verdict)
+        stop_match = re.search(r"(?:Stop-Loss|Zarar\s+Kes).*?:\s*\[?([0-9\.,]+)", executive_verdict)
         conf_match = re.search(r"G[üu]ven.*?:\s*%?\s*([0-9]+)", executive_verdict)
         
-        t1w_val = float(t1w_match.group(2)) if t1w_match else current_price * 1.03
-        t15d_val = float(t15d_match.group(2)) if t15d_match else current_price * 1.08
-        stop_val = float(stop_match.group(1)) if stop_match else current_price * 0.96
-        conf_val = int(conf_match.group(1)) if conf_match else 75
+        try:
+            t1w_val = float(t1w_match.group(2).replace(".", "").replace(",", ".")) if t1w_match else current_price * 1.03
+        except Exception:
+            t1w_val = current_price * 1.03
+
+        try:
+            t15d_val = float(t15d_match.group(2).replace(".", "").replace(",", ".")) if t15d_match else current_price * 1.08
+        except Exception:
+            t15d_val = current_price * 1.08
+
+        try:
+            stop_val = float(stop_match.group(1).replace(".", "").replace(",", ".")) if stop_match else current_price * 0.96
+        except Exception:
+            stop_val = current_price * 0.96
+
+        try:
+            conf_val = int(conf_match.group(1)) if conf_match else 75
+        except Exception:
+            conf_val = 75
+
         verdict_type = "TUT" if veto_triggered else ("AL" if "AL" in executive_verdict.upper() else ("SAT" if "SAT" in executive_verdict.upper() else "TUT"))
 
         self.memory_engine.record_decision(
@@ -415,6 +496,14 @@ class BistHybridCommittee:
 
 ---
 
+{gatekeeper_report}
+
+---
+
+{price_action_report}
+
+---
+
 {akd_report}
 
 ---
@@ -428,6 +517,13 @@ class BistHybridCommittee:
 * **Etki Şiddeti (Impact):** %{sentiment_data.get('impact_intensity', 0.0)*100:.0f} | **İncelenen Haber:** {sentiment_data.get('news_count', 0)} Adet
 * **Katalizör Durumu:** {'🚀 Pozitif Katalizör Tespit Edildi 🟢' if sentiment_data.get('catalyst_detected') else ('🚨 Negatif Kriz Katalizörü 🔴' if sentiment_data.get('bearish_catalyst_detected') else '⚪ Nötr Haber Akışı')}
 * **Haber & KAP Özeti:** {sentiment_data.get('summary', '')}
+
+{kap_report if 'kap_report' in locals() else ''}
+
+---
+
+## 🧠 TRADEMEMORY: GEÇMİŞ İŞLEM DERSLERİ & POST-MORTEM REFLEKSİYONU
+{trade_memory_report if 'trade_memory_report' in locals() else ''}
 
 ---
 
@@ -472,7 +568,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BIST Hibrit Komite Çalıştırıcı")
     parser.add_argument("--ticker", type=str, default="THYAO.IS", help="İşteklenecek BIST sembolü")
     parser.add_argument("--days", type=int, default=15, help="Kronos tahmin gün sayısı")
-    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Gemini modeli")
+    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Gemini modeli")
     
     args = parser.parse_args()
     committee = BistHybridCommittee(gemini_model=args.model)

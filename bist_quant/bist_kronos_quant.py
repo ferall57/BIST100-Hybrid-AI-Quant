@@ -114,17 +114,22 @@ class BistKronosQuant:
         
         print(f"⚡ {ticker} için {lookback} günlük geçmiş kullanılarak {pred_len} günlük Kronos tahmini hesaplanıyor...")
         
-        # Tahmin üret (Çoklu-Patika Monte Carlo Çıkarım Topluluğu)
+        # Tahmin üret (Çoklu-Patika Monte Carlo Çıkarım Topluluğu & VRAM Koruması)
         sample_count = max(sample_count, 5)
-        pred_df = self.predictor.predict(
-            df=x_df,
-            x_timestamp=x_timestamp,
-            y_timestamp=y_timestamp_series,
-            pred_len=pred_len,
-            T=0.7,
-            top_p=0.85,
-            sample_count=sample_count
-        )
+        try:
+            with torch.inference_mode():
+                pred_df = self.predictor.predict(
+                    df=x_df,
+                    x_timestamp=x_timestamp,
+                    y_timestamp=y_timestamp_series,
+                    pred_len=pred_len,
+                    T=0.7,
+                    top_p=0.85,
+                    sample_count=sample_count
+                )
+        finally:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         
         # 🛡️ MUM FİZİĞİ & BIST DEVRE KESİCİ SANITIZER KATMANI (Fix 2.1 & 2.2)
         pred_df = self._sanitize_candlestick_physics(pred_df, current_close=float(hist_df["close"].iloc[-1]))

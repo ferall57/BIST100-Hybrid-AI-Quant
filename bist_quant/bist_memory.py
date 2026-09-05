@@ -27,6 +27,8 @@ MEMORY_DIR = os.path.join(ROOT_DIR, "outputs", "memory")
 MEMORY_FILE = os.path.join(MEMORY_DIR, "committee_episodic_memory.json")
 
 
+import tempfile
+
 class BistCommitteeMemory:
     """
     BIST Yapay Zeka Komitesi için Zaman ve Vade Duyarlı Kalıcı Hafıza Yöneticisi.
@@ -62,11 +64,19 @@ class BistCommitteeMemory:
         return default_memory
 
     def _save_memory(self, data: dict = None):
-        """Hafızayı diske kaydeder."""
+        """Hafızayı atomik olarak diske kaydeder (race condition kalkanı)."""
         if data is None:
             data = self.memory_data
-        with open(self.memory_filepath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        dir_name = os.path.dirname(self.memory_filepath)
+        os.makedirs(dir_name, exist_ok=True)
+        try:
+            with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
+                json.dump(data, tf, ensure_ascii=False, indent=2)
+                temp_name = tf.name
+            os.replace(temp_name, self.memory_filepath)
+        except Exception:
+            with open(self.memory_filepath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
     def record_decision(
         self,

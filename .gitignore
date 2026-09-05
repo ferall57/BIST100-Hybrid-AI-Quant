@@ -1,5 +1,6 @@
 # Çevresel Değişkenler ve API Anahtarları (BUNLAR ASLA GİTHUB'A GİTMEMELİ)
 .env
+*.env*
 __pycache__/
 *.pyc
 *.pyo
@@ -18,8 +19,25 @@ __pycache__/
 outputs/charts/*.png
 outputs/reports/*.md
 
+# Kullanıcıya Özel / Gizli Dosyalar (ASLA GİTHUB'A GİTMEZ)
+private_*
+local_*
+*.private.*
+bist_data/
+*.bat
+start_*
+outputs/private_ledger/
+outputs/memory/
+outputs/trade_memory/
+*.duckdb
+*.duckdb.wal
+telegram_config.json
+viop_portfolio_ledger.json
+committee_episodic_memory.json
+
 # IDE ve OS Dosyaları
 .vscode/
 .idea/
 .DS_Store
 scratch/
+

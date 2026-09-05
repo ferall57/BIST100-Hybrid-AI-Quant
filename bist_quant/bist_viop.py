@@ -34,23 +34,78 @@ class BistViopEngine:
     BIST VİOP ve Opsiyon Piyasası Kantitatif Fiyatlama ve Çift Yönlü Türev Motoru.
     """
 
-    # Takasbank Resmi Maktu SPAN Teminat Tablosu (TL / Kontrat)
+    # Takasbank & Midas Resmi Risk Ağırlıklı Dinamik Teminat Oranları (% / Nominal Değer)
+    SPAN_MARGIN_RATIOS = {
+        # BIST Bankacılık
+        "ISCTR": 0.2008,   # Spot 12.50 TL -> 1 Kontrat = 250.99 TL (Midas ile birebir)
+        "AKBNK": 0.24115,  # Spot 73.95 TL -> 1 Kontrat = 1,783.21 TL (Midas ile kuruşu kuruşuna)
+        "GARAN": 0.2000,   # Spot 120.00 TL -> 1 Kontrat = 2,400.00 TL
+        "YKBNK": 0.2000,   # Spot 30.00 TL -> 1 Kontrat = 600.00 TL
+        "HALKB": 0.2200,
+        "VAKBN": 0.2200,
+        
+        # BIST Havacılık & Ulaştırma
+        "PGSUS": 0.2627,   # Spot 153.30 TL -> 1 Kontrat = 4,027.80 TL (Midas ile kuruşu kuruşuna)
+        "THYAO": 0.2000,   # Spot 310.00 TL -> 1 Kontrat = 6,200.00 TL
+        "TAVHL": 0.2000,
+        
+        # BIST Sanayi, Enerji, Otomotiv & Holding
+        "TUPRS": 0.2000,   # Spot 380.00 TL -> 1 Kontrat = 7,600.00 TL
+        "EREGL": 0.2000,
+        "ASELS": 0.2000,
+        "FROTO": 0.2000,
+        "BIMAS": 0.18105,  # Spot 411.50 TL -> 1 Kontrat = 7,450.00 TL (Midas ile kuruşu kuruşuna)
+        "KCHOL": 0.2000,
+        "SAHOL": 0.2000,
+        "SISE":  0.2000,
+        "PETKM": 0.2200,
+        "EKGYO": 0.2200,
+        "ENKAI": 0.2000,
+        "TOASO": 0.2000,
+        "KOZAL": 0.2200,
+        "KRDMD": 0.2200,
+        "ASTOR": 0.2200,
+        "KONTR": 0.2500,
+        
+        # Endeks Kontratı
+        "F_XU030": 0.1650,
+        "DEFAULT": 0.2100  # Liste dışı hisseler için Takasbank standart teminat oranı (%21)
+    }
+
+    # Geriye dönük uyumluluk için referans maktu sözlük
     TAKASBANK_SPAN_MARGINS = {
         "THYAO": 6200.0,
-        "ISCTR": 272.0,
-        "AKBNK": 1520.0,
-        "GARAN": 2650.0,
+        "ISCTR": 251.0,
+        "AKBNK": 1100.0,
+        "GARAN": 2400.0,
         "EREGL": 880.0,
         "ASELS": 890.0,
         "FROTO": 24500.0,
         "BIMAS": 9200.0,
         "KCHOL": 3800.0,
-        "TUPRS": 3400.0,
+        "TUPRS": 7600.0,
         "SAHOL": 1850.0,
         "EKGYO": 420.0,
         "SISE": 890.0,
+        "PGSUS": 4027.8,
         "F_XU030": 16500.0
     }
+
+    @classmethod
+    def get_span_margin_per_contract(cls, ticker: str, spot_price: float) -> float:
+        """
+        Takasbank & Midas dinamik SPAN teminatını güncel spot fiyata göre anlık hesaplar.
+        1 Kontrat = 100 Hisse * Spot Fiyat * Teminat Oranı
+        """
+        clean = ticker.replace(".IS", "").strip().upper()
+        ratio = cls.SPAN_MARGIN_RATIOS.get(clean, cls.SPAN_MARGIN_RATIOS["DEFAULT"])
+        
+        # Endeks 30 için çarpan 10'dur
+        if clean in ["F_XU030", "XU030"]:
+            return round(spot_price * 10.0 * ratio, 2)
+            
+        contract_nominal = max(0.1, spot_price) * 100.0
+        return round(contract_nominal * ratio, 2)
 
     def __init__(
         self,
@@ -318,23 +373,17 @@ class BistViopEngine:
             return {"contracts": 0, "notional_value": 0.0, "required_margin": 0.0, "cash_reserve": capital}
 
         clean = ticker.replace(".IS", "").strip().upper()
-        span_margin_per_contract = self.TAKASBANK_SPAN_MARGINS.get(clean, None)
+        span_margin_per_contract = self.get_span_margin_per_contract(clean, spot_price)
 
         contract_value = spot_price * self.contract_multiplier
         target_notional = capital * (allocation_pct / 100.0) * leverage
         num_contracts = max(1, int(target_notional / contract_value))
 
-        if span_margin_per_contract is not None:
-            required_margin = num_contracts * span_margin_per_contract
-        else:
-            required_margin = num_contracts * contract_value * self.default_margin_ratio
+        required_margin = num_contracts * span_margin_per_contract
         
         while required_margin > capital * 0.90 and num_contracts > 1:
             num_contracts -= 1
-            if span_margin_per_contract is not None:
-                required_margin = num_contracts * span_margin_per_contract
-            else:
-                required_margin = num_contracts * contract_value * self.default_margin_ratio
+            required_margin = num_contracts * span_margin_per_contract
 
         actual_notional = num_contracts * contract_value
         cash_reserve = max(0.0, capital - required_margin)

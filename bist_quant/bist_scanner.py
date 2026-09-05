@@ -15,20 +15,29 @@ if ROOT_DIR not in sys.path:
 from bist_quant.bist_100_tickers import get_tickers
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
 from hybrid_agents.bist_committee import BistHybridCommittee
+from bist_quant.bist_price_action import BistPriceActionEngine
+from bist_quant.bist_index_gatekeeper import BistIndexGatekeeper
 
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
 
 class BistScanner:
     """
     BIST 100 / BIST 30 hisse evrenini otomatik tarayan, 
-    2 Aşamalı Hızlı Quant & Derin Komite Filtreleme Motoru (Screener).
+    XU100 Endeks Kapısı ve ICT Smart Money Destekli 2 Aşamalı Hızlı Quant & Derin Komite Filtreleme Motoru.
     """
-    def __init__(self, gemini_model: str = "gemini-3.5-flash", temperature: float = 0.2):
+    def __init__(self, gemini_model: str = "gemini-2.5-flash", temperature: float = 0.2):
         os.makedirs(REPORTS_DIR, exist_ok=True)
         self.gemini_model = gemini_model
         self.temperature = temperature
         self.committee = BistHybridCommittee(gemini_model=gemini_model, temperature=temperature)
         self.quant_engine = self.committee.quant_engine
+        self.price_action_engine = BistPriceActionEngine()
+        self.gatekeeper_engine = BistIndexGatekeeper()
+        try:
+            from bist_quant.bist_duckdb_engine import BistDuckDbEngine
+            self.duckdb_engine = BistDuckDbEngine()
+        except Exception:
+            self.duckdb_engine = None
 
     def _quick_screen_ticker(self, ticker: str, forecast_days: int = 15):
         """Tek bir hisse için hızlı teknik, rasyo ve quant getiri ön değerlendirmesi yapar."""
@@ -43,8 +52,22 @@ class BistScanner:
             if len(df) < 50:
                 return None
                 
-            current_close = df["close"].iloc[-1]
-            prev_close = df["close"].iloc[-2] if len(df) >= 2 else current_close
+            current_close = float(df["close"].iloc[-1])
+            prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else current_close
+            
+            # Canlı seans / Açılış öncesi en son anlık fiyat teyidi (fast_info senkronizasyonu)
+            try:
+                t_obj = yf.Ticker(ticker)
+                fi = t_obj.fast_info
+                live_p = getattr(fi, 'last_price', None)
+                if live_p is not None and not np.isnan(live_p) and live_p > 0:
+                    current_close = float(live_p)
+                prev_c = getattr(fi, 'previous_close', None)
+                if prev_c is not None and not np.isnan(prev_c) and prev_c > 0:
+                    prev_close = float(prev_c)
+            except Exception:
+                pass
+
             daily_change = ((current_close - prev_close) / prev_close) * 100.0
             
             # 20 günlük ortalama hacim
@@ -103,13 +126,30 @@ class BistScanner:
                 expected_return = (((current_close - sma_20) / sma_20) + ((sma_20 - sma_50) / sma_50)) * 50.0
                 expected_return_1w = expected_return * 0.4
 
+            # 4. ICT Smart Money & Price Action Teyitleri
+            pa_sweeps = self.price_action_engine.detect_liquidity_sweeps(df)
+            pa_fvgs = self.price_action_engine.detect_fair_value_gaps(df)
+            pa_retest = self.price_action_engine.detect_break_and_retest(df)
+
+            ict_bonus = 0.0
+            if pa_sweeps.get("ssl_swept"):
+                ict_bonus += 15.0  # SSL Dip Süpürmesi (Boğa Onayı)
+            if pa_sweeps.get("bsl_swept"):
+                ict_bonus -= 20.0  # BSL Tepe Tuzağı
+            if pa_retest.get("is_break_retest"):
+                ict_bonus += 15.0  # Kırılım & Düşük Hacimli Retest Onayı
+            if pa_fvgs.get("nearest_fvg") and pa_fvgs["nearest_fvg"].get("type") == "BULLISH_FVG":
+                ict_bonus += 10.0
+
             if expected_return > 3.0:
                 trend_label = "🔥 YÜKSELİŞ"
             elif expected_return < -2.0:
                 trend_label = "❄️ DÜŞÜŞ"
 
-            # Skorlama: Quant getiri potansiyeli + 1H momentum + hacim desteği + iskonto payı
-            score = (expected_return * 1.2) + (expected_return_1w * 1.5) + (discount_to_high * 0.3) + (min(vol_ratio, 3.0) * 2.0)
+            # Skorlama: Quant getiri potansiyeli + 1H momentum + ICT Kalite Primi + hacim desteği + iskonto payı
+            score = (expected_return * 1.2) + (expected_return_1w * 1.5) + (discount_to_high * 0.25) + (min(vol_ratio, 3.0) * 1.5) + ict_bonus
+
+            nearest_ce = pa_fvgs["nearest_fvg"]["ce_50"] if pa_fvgs.get("nearest_fvg") else current_close
 
             return {
                 "ticker": ticker,
@@ -120,22 +160,59 @@ class BistScanner:
                 "trend": trend_label,
                 "vol_ratio": vol_ratio,
                 "discount_to_high": discount_to_high,
+                "ssl_swept": pa_sweeps.get("ssl_swept", False),
+                "bsl_swept": pa_sweeps.get("bsl_swept", False),
+                "fvg_ce_50": nearest_ce,
+                "break_retest": pa_retest.get("status", "YOK"),
+                "ict_bonus": ict_bonus,
                 "score": score
             }
         except Exception:
             return None
 
+    def scan_universe(self, mode: str = "bist30", top_n: int = 10, forecast_days: int = 15) -> list[dict]:
+        tickers = get_tickers(mode=mode)
+        target_tickers = tickers
+
+        # DuckDB Vektörize SQL Ön Eleme (Varsa mikrosaniyede ilk 15 adayı seçer)
+        if self.duckdb_engine:
+            try:
+                db_results = self.duckdb_engine.fast_screen_universe(tickers)
+                if db_results and len(db_results) >= top_n:
+                    target_tickers = [r["ticker"] for r in db_results[:min(len(db_results), max(15, top_n * 2))]]
+            except Exception:
+                target_tickers = tickers
+
+        candidates = []
+        with tqdm(total=len(target_tickers), desc="VİOP Taraması") as pbar:
+            for t in target_tickers:
+                res = self._quick_screen_ticker(t, forecast_days=forecast_days)
+                if res:
+                    candidates.append(res)
+                pbar.update(1)
+        # En yüksek potansiyelli (score) hisseleri en başa sırala (abs KALDIRILDI)
+        candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return candidates[:top_n]
+
     def scan_and_report(self, mode: str = "bist30", top_n: int = 5, forecast_days: int = 15):
         tickers = get_tickers(mode=mode)
-        print(f"\n" + "="*80)
-        print(f"🔍 BIST OTOMATIK TARAMA MOTORU (SCREENER) BASLATILDI")
+        
+        # 0. AŞAMA: BIST 100 ENDEKS KAPISI (GATEKEEPER) DENETİMİ
+        gatekeeper_rep = self.gatekeeper_engine.generate_gatekeeper_report()
+        regime_data = self.gatekeeper_engine.get_market_regime()
+        
+        print("\n" + "="*80)
+        print(gatekeeper_rep)
+        print("="*80)
+        
+        print(f"\n🔍 BIST OTOMATİK ICT & QUANT TARAMA MOTORU (SCREENER) BAŞLATILDI")
         print(f"📊 Hedef Evren : {mode.upper()} ({len(tickers)} Hisse)")
-        print(f"🎯 Hedef Filtre: En Yüksek Potansiyelli İlk {top_n} Hisse")
+        print(f"🎯 Hedef Filtre: En Yüksek A+ Potansiyelli İlk {top_n} Hisse")
         print(f"🔮 Quant Vade  : 1 Hafta (5G) & {forecast_days} İşlem Günü")
         print("="*80)
 
         # 1. AŞAMA: Hızlı Ön Eleme (Funnel 1)
-        print(f"\n[AŞAMA 1/2] {len(tickers)} Hisse İçin Teknik & Quant Hızlı Ön Tarama Yapılıyor...")
+        print(f"\n[AŞAMA 1/2] {len(tickers)} Hisse İçin ICT Likidite, FVG, Retest & Quant Hızlı Ön Tarama Yapılıyor...")
         candidates = []
         with tqdm(total=len(tickers), desc="Hisse Taraması") as pbar:
             for t in tickers:

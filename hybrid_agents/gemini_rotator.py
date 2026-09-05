@@ -27,7 +27,7 @@ class GeminiRotator:
     Herhangi bir anahtarda kota sorunu (HTTP 429, ResourceExhausted, Rate Limit) meydana gelirse
     hiçbir kesinti yaşatmadan bir sonraki yedek anahtara geçiş yapar (Failover & Rotation).
     """
-    def __init__(self, model_name: str = "gemini-3.5-flash", temperature: float = 0.2, max_retries: int = 5):
+    def __init__(self, model_name: str = "gemini-2.5-flash", temperature: float = 0.2, max_retries: int = 5):
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         env_file = os.path.join(root_dir, ".env")
         load_dotenv(dotenv_path=env_file, override=True)
@@ -60,65 +60,62 @@ class GeminiRotator:
                 keys.append(single.strip())
         return keys
 
-    def _create_client(self, api_key: str):
+    def _create_client(self, api_key: str, model_override: str = None):
         if not LANGCHAIN_AVAILABLE:
             return None
         os.environ["GOOGLE_API_KEY"] = api_key
-        # Gemini Modeli Başlat (Model adı uyumluluğu ile)
+        target_model = model_override or self.model_name
         try:
             return ChatGoogleGenerativeAI(
-                model=self.model_name,
+                model=target_model,
                 temperature=self.temperature,
+                api_key=api_key,
                 google_api_key=api_key,
                 max_retries=1
             )
         except Exception:
-            # Fallback
             return ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash",
+                model="gemini-1.5-flash",
                 temperature=self.temperature,
+                api_key=api_key,
                 google_api_key=api_key,
                 max_retries=1
             )
 
-    def rotate_key(self, error_msg: str = ""):
+    def rotate_key(self, error_msg: str = "", fallback_model: str = None):
         """Bir sonraki API anahtarına kesintisiz atlama gerçekleştirir."""
         old_index = self.current_index
         self.current_index = (self.current_index + 1) % len(self.api_keys)
         new_key = self.api_keys[self.current_index]
-        self.active_client = self._create_client(new_key)
-        print(f"\n⚡ [API ROTASYON] Anahtar #{old_index+1}'de sınır uyarısı algılandı -> Anahtar #{self.current_index+1} aktif edildi!")
+        self.active_client = self._create_client(new_key, model_override=fallback_model)
+        model_str = f" [Model: {fallback_model}]" if fallback_model else ""
+        print(f"\n⚡ [API ROTASYON] Anahtar #{old_index+1}'de sınır uyarısı algılandı -> Anahtar #{self.current_index+1} aktif edildi!{model_str}")
         if error_msg:
             logger.debug(f"Rotasyon Gerekçesi: {error_msg}")
 
     def invoke(self, messages: Any, **kwargs) -> Any:
         """
         LangChain standardı invoke arayüzünün dayanıklı (fault-tolerant) versiyonu.
-        429 veya ResourceExhaustions hatalarında diğer API key ile sorguyu otomatik tekrarlar.
+        429, 503 veya ResourceExhaustions hatalarında diğer API key ile sorguyu otomatik tekrarlar.
         """
         if not self.active_client:
             raise RuntimeError("LangChain ChatGoogleGenerativeAI istemcisi oluşturulamadı.")
             
         attempts = 0
-        while attempts < (len(self.api_keys) * 2):
+        max_total_attempts = len(self.api_keys) * 4
+
+        while attempts < max_total_attempts:
             try:
                 response = self.active_client.invoke(messages, **kwargs)
                 return response
             except Exception as e:
                 err_str = str(e).lower()
                 attempts += 1
-                # Kota, Rate Limit, ResourceExhausted, 429 veya 503 Sunucu Yoğunluğu kontrolü
-                is_transient = any(x in err_str for x in ["429", "503", "quota", "exhausted", "rate limit", "permission", "limit", "unavailable", "high demand", "overloaded"])
-                if is_transient:
-                    print(f"⚠️ API Kota / Sunucu Yoğunluk Uyarısı ({e}). Başka API anahtarına deneniyor... (Deneme: {attempts}/{len(self.api_keys)*2})")
-                    self.rotate_key(str(e))
-                    time.sleep(2)  # Sunucunun toparlanması için kısa bekleme
-                else:
-                    if attempts >= (len(self.api_keys) * 2):
-                        raise e
-                    print(f"⚠️ Geçici Bağlantı Hatası: {e} -> Diğer API anahtarında tekrar deneniyor...")
-                    self.rotate_key(str(e))
-                    time.sleep(1)
+                wait_secs = min(10, 2 + (attempts // len(self.api_keys)) * 2)
+
+                print(f"⚠️ [API UYARISI] {str(e)[:120]}... -> Diğer API anahtarına geçiliyor ({attempts}/{max_total_attempts}, {wait_secs}s bekleme)...")
+                self.rotate_key(str(e), fallback_model=self.model_name)
+                time.sleep(wait_secs)
         
         raise RuntimeError("❌ Tüm Gemini API anahtarları denendi fakat kota veya bağlantı sınırı aşılamadı.")
 

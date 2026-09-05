@@ -66,7 +66,7 @@ def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6,
     generate_bist_config(epochs_tokenizer=epochs_tok, epochs_predictor=epochs_pred, batch_size=batch_size, accum_steps=accum, lr_predictor=lr, train_tokenizer=not skip_tok)
     run_training(skip_tokenizer=skip_tok)
 
-def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.3):
+def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.3):
     if not ticker:
         print("[HATA] Lütfen analiz edilecek BIST sembolü girin. Örn: '--analyze THYAO.IS'")
         return
@@ -260,7 +260,7 @@ def handle_memory(ticker: str):
     except Exception as e:
         print(f"\n[HAFIZA HATASI] {e}")
 
-def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-3.5-flash", temp: float = 0.2):
+def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.2):
     try:
         scanner = BistScanner(gemini_model=model, temperature=temp)
         scanner.scan_and_report(mode=mode, top_n=top_n, forecast_days=days)
@@ -322,7 +322,7 @@ def handle_viop_signals(top_n: int = 10):
     except Exception as e:
         print(f"\n[VİOP SİNYAL HATASI] Tarama sırasında problem oluştu: {e}")
 
-def handle_sentiment(ticker: str, model: str = "gemini-3.5-flash"):
+def handle_sentiment(ticker: str, model: str = "gemini-2.5-flash"):
     if not ticker:
         print("[HATA] Lütfen analiz edilecek BIST sembolü girin. Örn: '--sentiment ASELS.IS'")
         return
@@ -399,6 +399,32 @@ def handle_akd_scan(mode: str = "bist30", top_n: int = 15):
     except Exception as e:
         print(f"\n[AKD TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
 
+def handle_bot():
+    from private_interactive_telegram import InteractiveTelegramBot
+    import time
+    bot = InteractiveTelegramBot()
+    if not bot.is_configured:
+        print("[HATA] Telegram Bot Token veya Chat ID yapılandırılmamış!")
+        return
+    print("\n" + "="*80)
+    print("🤖 [KRONOS] Çift Yönlü İnteraktif Telegram Bot Dinleyicisi Başlatıldı...")
+    print("📲 Telegram'dan '/status', '/scan' komutlarını veya sinyal onay butonlarını gönderebilirsiniz.")
+    print("Durdurmak için Ctrl+C tuşlarına basınız.")
+    print("="*80 + "\n")
+    try:
+        while True:
+            bot.poll_and_process_updates(timeout=10)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[BİLGİ] Telegram Bot dinleyicisi durduruldu.")
+
+def handle_sync_db():
+    from bist_quant.bist_duckdb_engine import BistDuckDbEngine
+    engine = BistDuckDbEngine()
+    print("\n[DUCKDB] BIST mum verileri yerel DuckDB veritabanına aktarılıyor...")
+    n = engine.sync_csv_to_duckdb()
+    print(f"✅ Toplam {n} hissenin tüm geçmiş mumları 'bist_data/kronos_market.duckdb' içine senkronize edildi.")
+
 def main():
     banner()
     parser = argparse.ArgumentParser(description="BIST 100 Hibrit AI Komitesi & Ekonometri Ana İletişim Arayüzü")
@@ -421,6 +447,8 @@ def main():
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini otomatik tara ve en iyi fırsatları keşfet")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
+    parser.add_argument("--bot", action="store_true", help="Çift yönlü interaktif Telegram komuta botunu arka planda dinleyici olarak başlat")
+    parser.add_argument("--sync-db", action="store_true", help="Tüm CSV mum verilerini yerel DuckDB analitik tablosuna senkronize et")
     
     # Opsiyonel parametreler
     parser.add_argument("--viop", action="store_true", help="Backtest içinde Çift Yönlü (Long & Short) VİOP türev motorunu çalıştır")
@@ -431,7 +459,7 @@ def main():
     parser.add_argument("--sl", type=float, default=3.5, help="Stop-Loss yüzdesi")
     parser.add_argument("--tp", type=float, default=8.0, help="Take-Profit yüzdesi")
     parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest içinde derin Kronos modelini çalıştır")
-    parser.add_argument("--model", type=str, default="gemini-3.5-flash", help="Kullanılacak Gemini modeli")
+    parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Kullanılacak Gemini modeli")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayısı")
     parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor epok sayısı")
     parser.add_argument("--batch-size", type=int, default=2, help="Batch size")
@@ -443,6 +471,10 @@ def main():
         
     args = parser.parse_args()
     
+    if args.sync_db:
+        handle_sync_db()
+    if args.bot:
+        handle_bot()
     if args.download_all:
         handle_download(mode=args.download_mode, period="max", workers=args.workers)
     if args.train_kronos:

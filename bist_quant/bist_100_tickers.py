@@ -22,20 +22,26 @@ BIST_100_TICKERS = [
 # Temizlenmiş tam liste (hatalı veya tekrarlı kayıtlar hariç)
 BIST_100_TICKERS = sorted(list(set([t for t in BIST_100_TICKERS if t.endswith(".IS")])))
 
-# En yüksek hacimli BIST 30 Hisseleri (Hızlı doğrulama ve denemeler için)
-BIST_30_TICKERS = sorted(list(set([
-    "AKBNK.IS", "ALARK.IS", "ASELS.IS", "ASTOR.IS", "BIMAS.IS", "DOAS.IS", "DOHOL.IS",
-    "EKGYO.IS", "ENKAI.IS", "EREGL.IS", "FROTO.IS", "GARAN.IS", "GUBRF.IS", "HALKB.IS",
-    "HEKTS.IS", "ISCTR.IS", "KCHOL.IS", "KONTR.IS", "KOZAA.IS", "KOZAL.IS", "KRDMD.IS",
-    "OYAKC.IS", "PETKM.IS", "PGSUS.IS", "SAHOL.IS", "SASA.IS", "SISE.IS", "TCELL.IS",
-    "THYAO.IS", "TOASO.IS", "TUPRS.IS", "YKBNK.IS"
+# Borsa İstanbul & Midas'ta Aktif Olarak İşlem Gören Resmi VİOP Pay Vadeli Sözleşmeleri (BIST 30 + Likit Pay VİOP)
+BIST_VIOP_TICKERS = sorted(list(set([
+    "AKBNK.IS", "ALARK.IS", "ARCLK.IS", "ASELS.IS", "ASTOR.IS", "BIMAS.IS",
+    "DOAS.IS", "DOHOL.IS", "EKGYO.IS", "ENKAI.IS", "EREGL.IS", "FROTO.IS",
+    "GARAN.IS", "GUBRF.IS", "HALKB.IS", "HEKTS.IS", "ISCTR.IS", "KCHOL.IS",
+    "KRDMD.IS", "MGROS.IS", "OYAKC.IS", "PETKM.IS", "PGSUS.IS", "SAHOL.IS",
+    "SASA.IS", "SISE.IS", "TCELL.IS", "THYAO.IS", "TOASO.IS", "TUPRS.IS",
+    "VAKBN.IS", "VESTL.IS", "YKBNK.IS"
 ])))
 
+# BIST 30 listesi olarak da VİOP uyumlu resmi listeyi kullan
+BIST_30_TICKERS = BIST_VIOP_TICKERS
+
 def get_tickers(mode="bist100"):
-    if mode.lower() == "bist30":
-        return BIST_30_TICKERS
+    m = mode.lower()
+    if m in ["bist30", "viop", "bist_viop"]:
+        return BIST_VIOP_TICKERS
     return BIST_100_TICKERS
 
 if __name__ == "__main__":
     print(f"BIST 100 Hisse Sayısı: {len(get_tickers('bist100'))}")
-    print(f"BIST 30 Hisse Sayısı: {len(get_tickers('bist30'))}")
+    print(f"BIST VİOP Aktif Hisse Sayısı: {len(get_tickers('viop'))}")
+
