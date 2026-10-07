@@ -20,7 +20,7 @@ ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from bist_quant.bist_downloader import download_bist_universe, download_ticker_data, RAW_DATA_DIR
+from bist_quant.bist_downloader import download_bist_universe, download_ticker_data, trim_to_period, RAW_DATA_DIR
 from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee
@@ -97,7 +97,7 @@ def handle_econometrics(ticker: str, days: int = 15):
             print(f"[HATA] {t} verisi indirilemedi.")
             return
             
-        df = pd.read_csv(csv_file)
+        df = trim_to_period(pd.read_csv(csv_file), "5y")
         econ = BistEconometrics()
         print("\n" + "="*85)
         print(econ.generate_econometric_report(df, t, forecast_days=days))
@@ -157,7 +157,7 @@ def handle_microstructure(ticker: str):
             print(f"[HATA] {t} verisi indirilemedi.")
             return
             
-        df = pd.read_csv(csv_file)
+        df = trim_to_period(pd.read_csv(csv_file), "6mo")
         ms = BistMarketMicrostructure()
         print("\n" + "="*85)
         print(ms.generate_microstructure_report(df, t))
@@ -177,8 +177,8 @@ def handle_pairs_trade(pairs_str: str):
         download_ticker_data(t1, period="2y", interval="1d", save_dir=RAW_DATA_DIR)
         download_ticker_data(t2, period="2y", interval="1d", save_dir=RAW_DATA_DIR)
         
-        df1 = pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t1}_1d.csv"))
-        df2 = pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t2}_1d.csv"))
+        df1 = trim_to_period(pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t1}_1d.csv")), "2y")
+        df2 = trim_to_period(pd.read_csv(os.path.join(RAW_DATA_DIR, f"{t2}_1d.csv")), "2y")
         
         s1 = df1.set_index("timestamps")["close"]
         s2 = df2.set_index("timestamps")["close"]
@@ -284,14 +284,14 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
         print("\n" + "="*80)
         print(f"BACKTEST TAMAMLANDI - [{ticker}] İÇİN FİNANSAL PERFORMANS METRİKLERİ:")
         print("="*80)
-        print(f"  • Strateji Toplam Getirisi : %{metrics.get('strategy_return_pct', 0.0):+.2f}")
-        print(f"  • Al ve Tut (Buy & Hold)   : %{metrics.get('buy_and_hold_return_pct', 0.0):+.2f}")
-        print(f"  • Üretilen Alfa (Alpha)    : %{metrics.get('alpha_pct', 0.0):+.2f}")
-        print(f"  • Kazanma Oranı (Win Rate) : %{metrics.get('win_rate_pct', 0.0):.1f} ({metrics.get('winning_trades', 0)} / {metrics.get('total_trades', 0)} İşlem)")
-        print(f"  • Kâr / Zarar Oranı (P/L)  : {metrics.get('profit_factor', 0.0):.2f}")
-        print(f"  • Maksimum Çekilme (MaxDD) : %{metrics.get('max_drawdown_pct', 0.0):.2f}")
-        print(f"  • Yıllık Sharpe Oranı      : {metrics.get('sharpe_ratio', 0.0):.2f}")
-        print(f"  • Gerçekleşen İşlem Sayısı : {metrics.get('total_trades', 0)} Adet (Ort. Süre: {metrics.get('avg_holding_days', 0.0):.1f} Gün)")
+        print(f"  • Strateji Toplam Getirisi : %{metrics['total_return_pct']:+.2f}")
+        print(f"  • Al ve Tut (Buy & Hold)   : %{metrics['bnh_return_pct']:+.2f}")
+        print(f"  • Üretilen Alfa (Alpha)    : %{metrics['alpha']:+.2f}")
+        print(f"  • Kazanma Oranı (Win Rate) : %{metrics['win_rate']:.1f} ({metrics['winning_trades']} / {metrics['total_trades']} İşlem)")
+        print(f"  • Kâr / Zarar Oranı (P/L)  : {metrics['profit_factor']:.2f}")
+        print(f"  • Maksimum Çekilme (MaxDD) : %{metrics['max_drawdown']:.2f}")
+        print(f"  • Yıllık Sharpe Oranı      : {metrics['sharpe_ratio']:.2f}")
+        print(f"  • Gerçekleşen İşlem Sayısı : {metrics['total_trades']} Adet (Ort. Süre: {metrics['avg_holding_days']:.1f} Gün)")
         print("="*80)
         print(f"Detaylı Performans Dosyası : {rep_file}")
         if chart_file:
@@ -369,7 +369,7 @@ def handle_akd(ticker: str):
             print(f"[HATA] {t} verisi indirilemedi.")
             return
             
-        df = pd.read_csv(csv_file)
+        df = trim_to_period(pd.read_csv(csv_file), "6mo")
         engine = BistAkdFlowEngine()
         print("\n" + "="*85)
         print(engine.get_akd_summary_text(t, df))

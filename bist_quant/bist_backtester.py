@@ -401,7 +401,7 @@ class BistBacktester:
                 "win_rate": 0.0, "total_return_pct": 0.0, "bnh_return_pct": bnh_return_pct,
                 "alpha": -bnh_return_pct, "sharpe_ratio": 0.0, "sortino_ratio": 0.0,
                 "max_drawdown": 0.0, "profit_factor": 0.0, "payoff_ratio": 0.0,
-                "avg_gain": 0.0, "avg_loss": 0.0, "avg_trade_return": 0.0,
+                "avg_gain": 0.0, "avg_loss": 0.0, "avg_trade_return": 0.0, "avg_holding_days": 0.0,
                 "initial_capital": initial_capital, "final_capital": final_capital
             }
 
@@ -466,6 +466,7 @@ class BistBacktester:
             "avg_gain": avg_gain,
             "avg_loss": avg_loss,
             "avg_trade_return": float(np.mean(returns)),
+            "avg_holding_days": float(np.mean([t.get("duration_days", 0) for t in trades])),
             "initial_capital": initial_capital,
             "final_capital": final_capital
         }

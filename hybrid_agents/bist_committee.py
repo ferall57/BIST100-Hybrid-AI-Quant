@@ -1,11 +1,13 @@
 import os
 import sys
 import re
+import numpy as np
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
 
 from hybrid_agents.gemini_rotator import GeminiRotator
+from hybrid_agents.verdict_parser import VERDICT_BUY, VERDICT_HOLD, VERDICT_UNKNOWN, parse_verdict_type
 from hybrid_agents.prompts import (
     BIST_FUNDAMENTAL_ANALYST_PROMPT,
     BIST_TECHNICAL_MACRO_PROMPT,
@@ -36,6 +38,19 @@ try:
 except Exception as e:
     QUANT_AVAILABLE = False
     print(f"[UYARI] BistKronosQuant motoru bağlanamadı: {e}")
+
+COMMITTEE_HISTORY_PERIOD = "5y"
+
+def _is_valid_price(value) -> bool:
+    return value is not None and not np.isnan(value) and value > 0
+
+def pick_live_price(last_price, previous_close, fallback: float) -> float:
+    """Canlı fiyat geçerliyse onu, değilse önceki kapanışı, o da yoksa CSV kapanışını döndürür."""
+    if _is_valid_price(last_price):
+        return float(last_price)
+    if _is_valid_price(previous_close):
+        return float(previous_close)
+    return fallback
 
 class BistHybridCommittee:
     """
@@ -166,8 +181,8 @@ class BistHybridCommittee:
         
         # 0. Yahoo Finance Canlı Veri Setini İndir ve Güncelle
         print(f"📥 [CANLI PİYASA] {ticker} için en güncel OHLCV verileri Yahoo Finance'ten çekiliyor...")
-        from bist_quant.bist_downloader import download_ticker_data
-        download_ticker_data(ticker, period="5y", interval="1d", save_dir=os.path.join(ROOT_DIR, "bist_data", "raw"))
+        from bist_quant.bist_downloader import download_ticker_data, trim_to_period
+        download_ticker_data(ticker, period=COMMITTEE_HISTORY_PERIOD, interval="1d", save_dir=os.path.join(ROOT_DIR, "bist_data", "raw"))
 
         ticker_obj = yf.Ticker(ticker)
         info = {}
@@ -186,20 +201,19 @@ class BistHybridCommittee:
         econometric_report = "Ekonometrik veri hazır değil."
         akd_report = "AKD ve Para Akışı verisi hazır değil."
         microstructure_report = "Mikro-yapı verisi hazır değil."
-        
+        price_action_report = "ICT Price Action verisi hazır değil."
+        gatekeeper_report = "Endeks kapısı verisi hazır değil."
+
         if os.path.exists(raw_csv):
-            df = pd.read_csv(raw_csv)
+            df = trim_to_period(pd.read_csv(raw_csv), COMMITTEE_HISTORY_PERIOD)
             current_price = float(df["close"].iloc[-1])
             try:
-                t_obj = yf.Ticker(ticker)
-                fi = t_obj.fast_info
-                live_p = getattr(fi, 'last_price', None)
-                if live_p is not None and not np.isnan(live_p) and live_p > 0:
-                    current_price = float(live_p)
-                elif getattr(fi, 'previous_close', None) is not None:
-                    current_price = float(fi.previous_close)
-            except Exception:
-                pass
+                fi = yf.Ticker(ticker).fast_info
+                current_price = pick_live_price(
+                    getattr(fi, 'last_price', None), getattr(fi, 'previous_close', None), fallback=current_price
+                )
+            except Exception as e_live:
+                print(f"[UYARI] {ticker} canlı fiyatı alınamadı, son CSV kapanışı kullanılıyor: {e_live}")
             recent_history = self.firewall.compress_ohlcv_history(df, ticker)
             try:
                 econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
@@ -360,11 +374,16 @@ class BistHybridCommittee:
         executive_verdict = extract_text(res_mgr)
         
         # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPILARI (ENDEKS KAPISI & EKONOMETRİ)
+        # Karar tek sefer, veto uyarıları metne eklenmeden önce ayrıştırılır.
+        # Ayrıştırılamayan karar veto açısından alım gibi ele alınır (güvenli taraf).
+        parsed_verdict = parse_verdict_type(executive_verdict)
+        is_vetoable = parsed_verdict in (VERDICT_BUY, VERDICT_UNKNOWN)
+
         veto_triggered = False
         veto_reason = ""
         market_regime = self.gatekeeper_engine.get_market_regime()
         if not market_regime.get("is_long_allowed", True):
-            if "GÜÇLÜ AL" in executive_verdict.upper() or "AL (BUY)" in executive_verdict.upper() or "BUY" in executive_verdict.upper():
+            if is_vetoable:
                 veto_triggered = True
                 veto_reason = f"XU100 Rejimi: {market_regime.get('regime')} (SMA50 Altında)"
                 executive_verdict = f"""> [!WARNING]
@@ -376,7 +395,7 @@ class BistHybridCommittee:
         akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
         
         if mc_data.get("prob_positive", 50.0) < 38.0 and akd_data.get("cmf_20", 0.0) < -0.12:
-            if "AL" in executive_verdict.upper() or "BUY" in executive_verdict.upper():
+            if is_vetoable:
                 veto_triggered = True
                 veto_reason = f"Merton MC Kazanma Olasılığı (%{mc_data.get('prob_positive', 0.0):.1f} < %38) ve CMF Para Çıkışı ({akd_data.get('cmf_20', 0.0):.3f})"
                 executive_verdict = f"""> [!WARNING]
@@ -428,7 +447,7 @@ class BistHybridCommittee:
         except Exception:
             conf_val = 75
 
-        verdict_type = "TUT" if veto_triggered else ("AL" if "AL" in executive_verdict.upper() else ("SAT" if "SAT" in executive_verdict.upper() else "TUT"))
+        verdict_type = VERDICT_HOLD if veto_triggered or parsed_verdict == VERDICT_UNKNOWN else parsed_verdict
 
         self.memory_engine.record_decision(
             ticker=ticker,

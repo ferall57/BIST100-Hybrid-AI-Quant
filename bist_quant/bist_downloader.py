@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import argparse
 import pandas as pd
@@ -16,6 +17,56 @@ from bist_quant.bist_100_tickers import get_tickers
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RAW_DATA_DIR = os.path.join(ROOT_DIR, "bist_data", "raw")
+
+INTRADAY_SUFFIXES = ("m", "h")
+PERIOD_PATTERN = re.compile(r"^(\d+)(d|wk|mo|y)$")
+PERIOD_OFFSET_UNITS = {"d": "days", "wk": "weeks", "mo": "months", "y": "years"}
+RESCALE_TOLERANCE = 0.005  # ortak mumlarda %0.5'ten büyük kapanış farkı = geçmiş yeniden ölçeklenmiş
+
+def _candle_keys(timestamps: pd.Series, daily: bool) -> pd.Series:
+    """Günlük mumlarda takvim gününü, gün içi mumlarda tam zaman damgasını anahtar yapar."""
+    as_text = timestamps.astype(str)
+    return as_text.str[:10] if daily else as_text
+
+def merge_candles(existing: pd.DataFrame, fresh: pd.DataFrame, daily: bool = True) -> pd.DataFrame:
+    """
+    Diskteki geçmişi yeni indirilen mumlarla birleştirir. Aynı muma ait satırda yeni veri kazanır;
+    kısa periyotlu bir indirme daha uzun geçmişi silmez.
+    """
+    if existing.empty:
+        return fresh.assign(timestamps=fresh["timestamps"].astype(str)).reset_index(drop=True)
+    combined = pd.concat(
+        [existing.assign(timestamps=existing["timestamps"].astype(str)),
+         fresh.assign(timestamps=fresh["timestamps"].astype(str))],
+        ignore_index=True,
+    )
+    keys = _candle_keys(combined["timestamps"], daily)
+    combined = combined.loc[~keys.duplicated(keep="last")]
+    order = _candle_keys(combined["timestamps"], daily).sort_values(kind="stable").index
+    return combined.loc[order].reset_index(drop=True)
+
+def histories_are_consistent(existing: pd.DataFrame, fresh: pd.DataFrame, daily: bool = True) -> bool:
+    """
+    Ortak mumlarda kapanışlar uyuşuyor mu? Bölünme/bedelsiz sonrası Yahoo tüm geçmişi yeniden
+    ölçekler; bu durumda eski dosya ile yeni veriyi birleştirmek sahte fiyat sıçraması üretir.
+    Diskteki son mum seans içi yarım kalmış olabileceği için karşılaştırmaya girmez.
+    """
+    old = existing.assign(_key=_candle_keys(existing["timestamps"], daily)).iloc[:-1]
+    new = fresh.assign(_key=_candle_keys(fresh["timestamps"], daily))
+    overlap = old.merge(new, on="_key", suffixes=("_old", "_new"))
+    if overlap.empty:
+        return True
+    drift = (overlap["close_new"] - overlap["close_old"]).abs() / overlap["close_old"].abs()
+    return bool((drift <= RESCALE_TOLERANCE).all())
+
+def trim_to_period(df: pd.DataFrame, period: str) -> pd.DataFrame:
+    """Geçmişi son mumdan geriye doğru istenen periyoda ('6mo', '2y' vb.) kırpar; 'max' dokunmaz."""
+    match = PERIOD_PATTERN.match(str(period))
+    if not match or df.empty:
+        return df
+    days = pd.to_datetime(df["timestamps"].astype(str).str[:10])
+    cutoff = days.max() - pd.DateOffset(**{PERIOD_OFFSET_UNITS[match.group(2)]: int(match.group(1))})
+    return df.loc[days >= cutoff].reset_index(drop=True)
 
 def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d", save_dir: str = RAW_DATA_DIR):
     """
@@ -72,7 +123,20 @@ def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d",
         # Sütunları sıraya koy
         final_cols = ["timestamps", "open", "high", "low", "close", "volume", "amount"]
         df = df[final_cols].sort_values("timestamps").reset_index(drop=True)
-        
+
+        # Diskte daha uzun bir geçmiş varsa koru: farklı periyotlu çağrılar aynı dosyayı paylaşır
+        if os.path.exists(file_path):
+            try:
+                existing = pd.read_csv(file_path)[final_cols]
+                is_daily = not interval.endswith(INTRADAY_SUFFIXES)
+                if histories_are_consistent(existing, df, daily=is_daily):
+                    df = merge_candles(existing, df, daily=is_daily)
+                elif len(existing) > len(df):
+                    print(f"[UYARI] {ticker}: geçmiş fiyatlar yeniden ölçeklenmiş (bölünme/bedelsiz). Eski {len(existing)} mum atıldı, "
+                          f"{len(df)} yeni mum yazıldı. Tam geçmiş için period='max' ile yeniden indirin.")
+            except Exception as merge_err:
+                print(f"[UYARI] {ticker}: mevcut veri okunamadı, yalnızca yeni indirilen veri yazılıyor: {merge_err}")
+
         # Atomik CSV kaydet (Yarış koşulu ve bozuk okuma kalkanı)
         import tempfile
         with tempfile.NamedTemporaryFile("w", dir=save_dir, delete=False, encoding="utf-8", suffix=".csv") as tf:
