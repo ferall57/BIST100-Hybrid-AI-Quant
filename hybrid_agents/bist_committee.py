@@ -28,6 +28,7 @@ from bist_quant.bist_index_gatekeeper import BistIndexGatekeeper
 from bist_quant.bist_kap_scraper import BistKapScraper
 from bist_quant.bist_trade_memory import BistTradeMemory
 from hybrid_agents.context_firewall import ContextFirewall
+from bist_quant.market_assumptions import POLICY_RATE_ENV, policy_rate_pct
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -40,6 +41,34 @@ except Exception as e:
     print(f"[UYARI] BistKronosQuant motoru bağlanamadı: {e}")
 
 COMMITTEE_HISTORY_PERIOD = "5y"
+MARKET_INDEX_TICKER = "XU100.IS"
+RAW_DATA_DIR = os.path.join(ROOT_DIR, "bist_data", "raw")
+
+def policy_rate_line() -> str:
+    """Makro bloğundaki politika faizi satırı; kullanıcı tanımlamadıysa değer uydurulmaz."""
+    rate = policy_rate_pct()
+    if rate is None:
+        return f"* **TCMB Politika Faizi:** VERİ YOK ({POLICY_RATE_ENV} tanımlı değil)"
+    return f"* **TCMB Politika Faizi:** %{rate:.2f} (kullanıcı tanımlı: {POLICY_RATE_ENV})"
+
+def describe_current_setup(sweeps: dict, retest: dict) -> str:
+    """Tespit edilen fiyat hareketi kurulumunun etiketi; kurulum yoksa boş metin."""
+    if sweeps.get("ssl_swept"):
+        return "SSL_SWEEP"
+    if retest.get("is_break_retest"):
+        return "RETEST"
+    if sweeps.get("bsl_swept"):
+        return "BSL_SWEEP"
+    return ""
+
+def load_market_history(period: str = COMMITTEE_HISTORY_PERIOD) -> pd.DataFrame | None:
+    """BIST 100 endeks geçmişi (CAPM beta/alfa için); alınamazsa None."""
+    from bist_quant.bist_downloader import download_ticker_data, trim_to_period
+    download_ticker_data(MARKET_INDEX_TICKER, period=period, interval="1d", save_dir=RAW_DATA_DIR)
+    csv_path = os.path.join(RAW_DATA_DIR, f"{MARKET_INDEX_TICKER}_1d.csv")
+    if not os.path.exists(csv_path):
+        return None
+    return trim_to_period(pd.read_csv(csv_path), period)
 
 def _is_valid_price(value) -> bool:
     return value is not None and not np.isnan(value) and value > 0
@@ -166,7 +195,7 @@ class BistHybridCommittee:
             xu100_p = f"{float(xu100['Close'].iloc[-1]):,.2f}" if not xu100.empty else "N/A"
 
             return f"""* **USD/TRY Kuru:** {usd_try}
-* **TCMB Politika / Gösterge Faizi (Varsayılan):** %50.00 (Gecelik Fonlama: ~%53.00)
+{policy_rate_line()}
 * **BIST 100 Endeksi:** {xu100_p}
 * **Brent Petrol (Varil):** {brent_p} | **Ons Altın (USD):** {gold_p}
 """
@@ -216,7 +245,9 @@ class BistHybridCommittee:
                 print(f"[UYARI] {ticker} canlı fiyatı alınamadı, son CSV kapanışı kullanılıyor: {e_live}")
             recent_history = self.firewall.compress_ohlcv_history(df, ticker)
             try:
-                econometric_report = self.econometric_engine.generate_econometric_report(df, ticker, forecast_days=forecast_days)
+                econometric_report = self.econometric_engine.generate_econometric_report(
+                    df, ticker, forecast_days=forecast_days, df_market=load_market_history()
+                )
             except Exception as ee:
                 econometric_report = f"Ekonometrik analiz hatası: {ee}"
             try:
@@ -240,7 +271,11 @@ class BistHybridCommittee:
             except Exception as e_kap:
                 kap_report = f"KAP analiz hatası: {e_kap}"
             try:
-                trade_memory_report = self.trade_memory.generate_trade_memory_report(ticker, current_setup="SSL_SWEEP_RETEST")
+                current_setup = describe_current_setup(
+                    self.price_action_engine.detect_liquidity_sweeps(df),
+                    self.price_action_engine.detect_break_and_retest(df),
+                )
+                trade_memory_report = self.trade_memory.generate_trade_memory_report(ticker, current_setup=current_setup)
             except Exception as e_tm:
                 trade_memory_report = f"TradeMemory analiz hatası: {e_tm}"
 
@@ -506,7 +541,7 @@ class BistHybridCommittee:
 * **Spot Fiyat:** {current_price:.2f} TRY | **Teorik Vadeli Fiyat (Cost-of-Carry):** **{theo_futures_p:.2f} TRY**
 * **1 Kontrat Büyüklüğü:** {viop_pos['contract_value']:,.2f} TRY | **Takasbank Maktu SPAN Teminatı:** **{viop_pos['required_margin']/max(1, viop_pos['contracts']):,.2f} TRY / Kontrat**
 * **100.000 TL Kasa İçin Pozisyon:** {viop_pos['contracts']} Kontrat ({viop_pos['contracts']*100} Pay) | **Toplam Notional Değer:** {viop_pos['notional_value']:,.2f} TRY (Efektif Kaldıraç: {viop_pos['effective_leverage']}x)
-* **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi gecelik yıllık ~%45 bileşik faiz getirisi üretir.
+* **Takasbank Nemalandırma Faizi:** Boşta kalan {viop_pos['cash_reserve']:,.2f} TRY nakit rezervi için yıllık %{self.viop_engine.overnight_interest_annual * 100:.1f} nemalandırma varsayılmıştır (varsayım, canlı oran değildir).
 
 ### 📐 Black-Scholes-Merton (BSM) 30G Opsiyon Fiyatlama & Greeks Duyarlılıkları (Strike: {strike_atm:.2f} TRY)
 * **Teorik Call Primi:** {greeks['call_price']:.3f} TRY (Delta Δ: {greeks['call_delta']:+.4f}, Theta Θ: {greeks['call_theta_daily']:.4f} TL/gün, Rho ρ: {greeks['call_rho']:+.4f})

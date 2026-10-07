@@ -12,6 +12,7 @@ if ROOT_DIR not in sys.path:
 
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
 from bist_quant.bist_viop import BistViopEngine
+from bist_quant.market_assumptions import risk_free_rate
 
 try:
     from bist_quant.bist_kronos_quant import BistKronosQuant
@@ -126,7 +127,7 @@ class BistBacktester:
         print(f"🔮 Tahmin Ufku    : {horizon_days} İşlem Günü")
         print(f"🛡️ Risk Yönetimi  : {'İz Süren Stop (Trailing Stop - Kârı Koştur)' if use_trailing_stop else f'Sabit TP: %{take_profit_pct:.1f}'} | Rejim Filtresi: {'Aktif' if enable_regime_filter else 'Pasif'}")
         if use_viop:
-            print(f"⚡ VİOP Modu      : Aktif (Çift Yönlü Long & Short | Kaldıraç: {leverage}x | Takasbank Nemalandırması: %45)")
+            print(f"⚡ VİOP Modu      : Aktif (Çift Yönlü Long & Short | Kaldıraç: {leverage}x | Nemalandırma Varsayımı: %{risk_free_rate() * 100:.1f})")
         print(f"💰 Başlangıç Kasa : {initial_capital:,.2f} TRY")
         print("="*85 + "\n")
 
@@ -154,7 +155,7 @@ class BistBacktester:
 
         trades = []
         current_capital = initial_capital
-        daily_interest_rate = (1.0 + 0.45) ** (1.0 / 365.0) - 1.0
+        daily_interest_rate = (1.0 + risk_free_rate()) ** (1.0 / 365.0) - 1.0
 
         # 2. Walk-Forward Döngüsü (Pencere Kaydırma)
         current_idx = test_start_idx

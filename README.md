@@ -205,6 +205,21 @@ python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest --viop
 
 ---
 
+## ⚙️ Piyasa Varsayımları (.env)
+
+Faiz oranları koda gömülü değildir; `.env` dosyasından yüzde olarak okunur:
+
+```bash
+KRONOS_RISK_FREE_RATE_PCT=45     # VİOP nemalandırma, BSM, Sharpe ve CAPM hesaplarındaki yıllık risksiz faiz (tanımsızsa %45 varsayılır)
+KRONOS_POLICY_RATE_PCT=          # TCMB politika faizi; tanımsızsa komiteye "VERİ YOK" olarak bildirilir
+```
+
+Veri alınamayan alanlar (aracı kurum dağılımı, KAP bildirimi, endeks betası, işlem hafızası) komiteye
+tahmini değerlerle değil açıkça **VERİ YOK** olarak iletilir. Gerçek aracı kurum dağılımı için
+`bist_data/akd/<HİSSE>_akd.csv` (`Kurum,NetLot` sütunları) dosyası sağlanmalıdır.
+
+---
+
 ## 📁 Proje Dizin Yapısı
 
 ```text

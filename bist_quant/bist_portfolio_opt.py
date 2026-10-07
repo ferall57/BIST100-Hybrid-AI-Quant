@@ -20,6 +20,12 @@ from scipy.cluster.hierarchy import linkage, dendrogram
 from scipy.spatial.distance import squareform
 from sklearn.covariance import LedoitWolf
 
+_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+
+from bist_quant.market_assumptions import risk_free_rate
+
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
 if hasattr(sys.stderr, 'reconfigure'):
@@ -30,9 +36,9 @@ class BistPortfolioOptimizer:
     """
     BIST 100 hisseleri ve çoklu varlık portföyleri için Kantitatif Tahsis Motoru.
     """
-    def __init__(self, risk_free_rate_annual: float = 0.45):
-        self.rf_annual = risk_free_rate_annual
-        self.rf_daily = (1.0 + risk_free_rate_annual) ** (1.0 / 252.0) - 1.0
+    def __init__(self, risk_free_rate_annual: float = None):
+        self.rf_annual = risk_free_rate() if risk_free_rate_annual is None else risk_free_rate_annual
+        self.rf_daily = (1.0 + self.rf_annual) ** (1.0 / 252.0) - 1.0
 
     def compute_returns_and_covariance(self, price_df: pd.DataFrame) -> tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
         """
@@ -320,7 +326,7 @@ if __name__ == "__main__":
         if not data.empty and "Close" in data.columns:
             df_prices[t] = data["Close"]
 
-    optimizer = BistPortfolioOptimizer(risk_free_rate_annual=0.45)
+    optimizer = BistPortfolioOptimizer()
     mean_ret, cov, corr = optimizer.compute_returns_and_covariance(df_prices)
     
     # 1. Markowitz Max Sharpe

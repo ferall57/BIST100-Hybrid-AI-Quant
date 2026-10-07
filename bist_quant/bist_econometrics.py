@@ -20,6 +20,33 @@ except ImportError:
     STATSMODELS_AVAILABLE = False
 
 
+_ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
+
+from bist_quant.market_assumptions import risk_free_rate
+
+NO_DATA = "VERİ YOK"
+MIN_CAPM_OBSERVATIONS = 30
+NO_MARKET_CAPM = {
+    "market_data_available": False,
+    "jensen_alpha_annual_pct": None,
+    "beta": None,
+    "capm_r_squared": None,
+    "tracking_error_pct": None,
+    "information_ratio": None,
+    "treynor_ratio": None,
+}
+
+def _log_returns_by_date(df: pd.DataFrame) -> pd.Series:
+    """Kapanış log-getirileri; 'timestamps' varsa takvim gününe göre indekslenir (seriler tarihle hizalanır)."""
+    frame = df.dropna(subset=["close"])
+    close = frame["close"]
+    if "timestamps" in frame.columns:
+        close = pd.Series(close.values, index=frame["timestamps"].astype(str).str[:10])
+        close = close[~close.index.duplicated(keep="last")]
+    return np.log(close / close.shift(1)).dropna()
+
 class BistEconometrics:
     """
     🏛️ KURUMSAL VE HEDGE-FUND DÜZEYİNDE EKONOMETRİ & KANTİTATİF ANALİZ MOTORU
@@ -378,7 +405,35 @@ class BistEconometrics:
     # =========================================================================
     # 4. VARLIK FİYATLAMA & LİKİDİTE MİKRO YAPISI (ASSET PRICING & LIQUIDITY)
     # =========================================================================
-    def calculate_asset_pricing_metrics(self, df_stock: pd.DataFrame, df_market: pd.DataFrame = None, rf_annual: float = 0.45) -> dict:
+    def _liquidity_metrics(self, df_stock: pd.DataFrame, close_s: pd.Series, ret_s: pd.Series) -> dict:
+        """Piyasa verisi gerektirmeyen Roll makası ve Amihud ilikidite ölçüleri."""
+        d_p = np.diff(close_s.values)
+        cov_dp = np.cov(d_p[1:], d_p[:-1])[0, 1] if len(d_p) > 5 else 0.0
+        roll_spread = float(2.0 * np.sqrt(-cov_dp)) if cov_dp < 0 else float(close_s.iloc[-1] * 0.001)
+
+        amihud = 0.0
+        if "volume" in df_stock.columns:
+            vol = df_stock["volume"].tail(len(ret_s)).values
+            pr = close_s.values[-len(ret_s):]
+            turnover = vol * pr
+            valid_t = turnover > 0
+            if len(turnover) == len(ret_s) and np.sum(valid_t) > 0:
+                amihud = float(np.mean(np.abs(ret_s.values[valid_t]) / turnover[valid_t]) * 1e6)
+
+        return {
+            "roll_effective_spread_try": roll_spread,
+            "amihud_illiquidity_ratio": amihud,
+            "liquidity_assessment": "Yüksek Likidite (Düşük Sürtünme)" if amihud < 0.05 else ("Orta Likidite" if amihud < 0.25 else "Düşük Likidite / Yüksek Fiyat Etkisi")
+        }
+
+    def format_capm_summary(self, pricing_res: dict) -> str:
+        """Rapor tablosu için CAPM hücresi; endeks verisi yoksa sayı uydurmaz."""
+        if not pricing_res.get("market_data_available"):
+            return f"α / β: {NO_DATA} (endeks verisi yok) | Bilgi Oranı (IR): {NO_DATA}"
+        return (f"α: %{pricing_res['jensen_alpha_annual_pct']:+.2f} (Yıllık), β: {pricing_res['beta']:.2f} "
+                f"| Bilgi Oranı (IR): {pricing_res['information_ratio']:.2f}")
+
+    def calculate_asset_pricing_metrics(self, df_stock: pd.DataFrame, df_market: pd.DataFrame = None, rf_annual: float = None) -> dict:
         """
         BIST hissesi için Sermaye Varlıklarını Fiyatlama Modeli (CAPM) ve Mikro-Yapı Metriklerini hesaplar:
         - Jensen's Alpha (α)
@@ -388,18 +443,19 @@ class BistEconometrics:
         - Amihud (2002) İlikidite / Fiyat Etki Rasyosu
         """
         try:
+            rf_annual = risk_free_rate() if rf_annual is None else rf_annual
             close_s = df_stock["close"].dropna()
-            ret_s = np.log(close_s / close_s.shift(1)).dropna()
+            ret_s = _log_returns_by_date(df_stock)
+            liquidity = self._liquidity_metrics(df_stock, close_s, ret_s)
+
+            # Endeks verisi yoksa beta/alfa hesaplanmaz (rastgele seriyle doldurulmaz).
+            has_market = df_market is not None and "close" in df_market.columns
+            aligned_df = pd.DataFrame({"stock": ret_s, "market": _log_returns_by_date(df_market)}).dropna() if has_market else pd.DataFrame()
+            if len(aligned_df) < MIN_CAPM_OBSERVATIONS:
+                return {**NO_MARKET_CAPM, **liquidity}
+            ret_s_v = aligned_df["stock"].values
+            ret_m_v = aligned_df["market"].values
             
-            if df_market is not None and "close" in df_market.columns:
-                close_m = df_market["close"].dropna()
-                ret_m = np.log(close_m / close_m.shift(1)).dropna()
-                aligned_df = pd.DataFrame({"stock": ret_s, "market": ret_m}).dropna()
-                ret_s_v = aligned_df["stock"].values
-                ret_m_v = aligned_df["market"].values
-            else:
-                ret_s_v = ret_s.values
-                ret_m_v = np.random.normal(0.001, 0.015, len(ret_s_v))
 
             rf_daily = rf_annual / 252.0
             excess_s = ret_s_v - rf_daily
@@ -420,32 +476,19 @@ class BistEconometrics:
             stock_annual_ret = float(np.mean(ret_s_v) * 252.0 * 100.0)
             treynor = float((stock_annual_ret - (rf_annual * 100.0)) / beta) if abs(beta) > 0.05 else 0.0
 
-            d_p = np.diff(close_s.values)
-            cov_dp = np.cov(d_p[1:], d_p[:-1])[0, 1] if len(d_p) > 5 else 0.0
-            roll_spread = float(2.0 * np.sqrt(-cov_dp)) if cov_dp < 0 else float(close_s.iloc[-1] * 0.001)
-
-            if "volume" in df_stock.columns:
-                vol = df_stock["volume"].tail(len(ret_s)).values
-                pr = close_s.values[-len(ret_s):]
-                turnover = vol * pr
-                valid_t = turnover > 0
-                amihud = float(np.mean(np.abs(ret_s_v[valid_t]) / turnover[valid_t]) * 1e6) if np.sum(valid_t) > 0 else 0.0
-            else:
-                amihud = 0.0
-
             return {
+                "market_data_available": True,
                 "jensen_alpha_annual_pct": alpha_annual_pct,
                 "beta": beta,
                 "capm_r_squared": r_squared,
                 "tracking_error_pct": tracking_error,
                 "information_ratio": info_ratio,
                 "treynor_ratio": treynor,
-                "roll_effective_spread_try": roll_spread,
-                "amihud_illiquidity_ratio": amihud,
-                "liquidity_assessment": "Yüksek Likidite (Düşük Sürtünme)" if amihud < 0.05 else ("Orta Likidite" if amihud < 0.25 else "Düşük Likidite / Yüksek Fiyat Etkisi")
+                **liquidity
             }
         except Exception as e:
-            return {"error": str(e), "jensen_alpha_annual_pct": 0.0, "beta": 1.0, "information_ratio": 0.0}
+            print(f"[UYARI] Varlık fiyatlama metrikleri hesaplanamadı: {e}")
+            return {"error": str(e), **NO_MARKET_CAPM}
 
     # =========================================================================
     # 5. İLERİ STOKASTİK SİMÜLASYON (MERTON JUMP DIFFUSION & EVT TAIL RISK)
@@ -606,13 +649,13 @@ class BistEconometrics:
     # =========================================================================
     # 6. KAPSAMLI KURUMSAL EKONOMETRİK RAPOR ÜRETECİ (QUANT DOSSIER)
     # =========================================================================
-    def generate_econometric_report(self, df: pd.DataFrame, ticker: str, forecast_days: int = 15) -> str:
+    def generate_econometric_report(self, df: pd.DataFrame, ticker: str, forecast_days: int = 15, df_market: pd.DataFrame = None) -> str:
         """Tüm istatistiksel, ekonometrik, tanısal ve stokastik testleri birleştirerek yapılandırılmış bir rapor üretir."""
         stat_res = self.test_stationarity(df)
         seas_res = self.analyze_seasonality(df)
         vol_res = self.calculate_volatility(df)
         diag_res = self.run_full_diagnostic_suite(df)
-        pricing_res = self.calculate_asset_pricing_metrics(df)
+        pricing_res = self.calculate_asset_pricing_metrics(df, df_market=df_market)
         mc_res = self.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000)
 
         med_t = mc_res["median_target"]
@@ -636,7 +679,7 @@ class BistEconometrics:
 | **Normallik (Jarque-Bera)** | JB: {diag_res.get('jarque_bera_stat', 0.0):.2f} (p={diag_res.get('jarque_bera_pvalue', 0.0):.4f}) | Çarpıklık: {diag_res.get('skewness', 0.0):.2f}, Basıklık: {diag_res.get('kurtosis', 3.0):.2f} ({'🔴 Kalın Kuyruk / Normallik Dışı' if not diag_res.get('is_normal', False) else '🟢 Normal Dağılım'}) |
 | **Otokorelasyon (Durbin-Watson)** | d={diag_res.get('durbin_watson', 2.0):.3f} (BG-LM p={diag_res.get('breusch_godfrey_pvalue', 0.5):.4f}) | {'⚠️ Pozitif Otokorelasyon Baskısı' if diag_res.get('durbin_watson', 2.0) < 1.5 else '✅ Bağımsız Hata Terimleri'} |
 | **Volatilite Kümelenmesi (ARCH-LM)**| p={diag_res.get('arch_lm_pvalue', 0.5):.4f} | {'🔥 Anlamlı ARCH Etkisi (Dinamik Risk Devrede)' if diag_res.get('has_volatility_clustering', False) else '⚪ Sabit Varyans'} |
-| **CAPM Jensen's Alpha & Beta** | α: %{pricing_res.get('jensen_alpha_annual_pct', 0.0):+.2f} (Yıllık), β: {pricing_res.get('beta', 1.0):.2f} | Bilgi Oranı (IR): {pricing_res.get('information_ratio', 0.0):.2f} | Roll Spread: {pricing_res.get('roll_effective_spread_try', 0.0):.3f} TL |
+| **CAPM Jensen's Alpha & Beta** | {self.format_capm_summary(pricing_res)} | Roll Spread: {pricing_res.get('roll_effective_spread_try', 0.0):.3f} TL |
 | **Mevsimsellik Gücü** | {seas_res.get('seasonal_strength', 'Nötr')} | En Güçlü Gün: **{seas_res.get('best_day', 'N/A')}** (%{seas_res.get('best_day_ret', 0.0):+.2f}), En Zayıf: **{seas_res.get('worst_day', 'N/A')}** (%{seas_res.get('worst_day_ret', 0.0):+.2f}) |
 | **1 Haftalık Merton MC (5G)**| **{mc_res['median_5d']:.2f} TRY** (Getiri: **%{mc_res['expected_return_5d_pct']:+.2f}**) | %95 Güven: **[{mc_res['ci_95_lower_5d']:.2f} - {mc_res['ci_95_upper_5d']:.2f} TRY]**, Kazanma: **%{mc_res['prob_positive_5d']:.1f}**, 5G VaR: **-%{mc_res['var_95_5d']:.2f}** (CVaR: -%{mc_res['cvar_95_5d']:.2f}) |
 | **Orta Vadeli Merton MC ({forecast_days}G)**| **{med_t:.2f} TRY** (Getiri: **%{ret_pct:+.2f}**) | %95 Güven: **[{ci_95_l:.2f} - {ci_95_u:.2f} TRY]**, Kazanma: **%{prob_pos:.1f}**, {forecast_days}G VaR: **-%{var_95:.2f}** (CVaR: -%{mc_res['cvar_95_pct']:.2f}, %99 CVaR: -%{mc_res.get('cvar_99_pct', 0.0):.2f}) |

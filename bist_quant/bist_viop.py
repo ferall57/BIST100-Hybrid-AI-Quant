@@ -28,6 +28,8 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from bist_quant.market_assumptions import risk_free_rate
+
 
 class BistViopEngine:
     """
@@ -110,13 +112,13 @@ class BistViopEngine:
     def __init__(
         self,
         default_leverage: float = 1.5,
-        overnight_interest_annual: float = 0.45,
+        overnight_interest_annual: float = None,
         commission_rate: float = 0.0004
     ):
         self.default_leverage = default_leverage
-        self.overnight_interest_annual = overnight_interest_annual
-        # Takasbank Gecelik Nemalandırma Günlük Bileşik Oranı (Yıllık %45 varsayımı)
-        self.daily_interest_rate = (1.0 + overnight_interest_annual) ** (1.0 / 365.0) - 1.0
+        self.overnight_interest_annual = risk_free_rate() if overnight_interest_annual is None else overnight_interest_annual
+        # Takasbank Gecelik Nemalandırma Günlük Bileşik Oranı (varsayım: market_assumptions.risk_free_rate)
+        self.daily_interest_rate = (1.0 + self.overnight_interest_annual) ** (1.0 / 365.0) - 1.0
         self.commission_rate = commission_rate
         self.contract_multiplier = 100  # 1 Pay Kontratı = 100 Adet Hisse Senedi
         self.default_margin_ratio = 0.22  # Liste dışı hisseler için varsayılan teminat oranı (~%22)

@@ -24,13 +24,16 @@ if ROOT_DIR not in sys.path:
 
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
 
+NO_DATA = "VERİ YOK"
+DEFAULT_AKD_DIR = os.path.join(ROOT_DIR, "bist_data", "akd")
 
 class BistAkdFlowEngine:
     """
     BIST Takasbank & AKD Para Giriş / Çıkış ve Kurumsal Balina Takip Motoru.
     """
 
-    def __init__(self):
+    def __init__(self, akd_dir: str = DEFAULT_AKD_DIR):
+        self.akd_dir = akd_dir
         # BIST piyasasında işlem yapan ana kurumsal aktörler
         self.institutional_brokers = [
             "Bank of America (BofA)",
@@ -134,9 +137,7 @@ class BistAkdFlowEngine:
         Dizin: bist_data/akd/<TICKER>_akd.csv
         """
         clean_t = ticker.replace(".IS", "").upper()
-        akd_dir = os.path.join(ROOT_DIR, "bist_data", "akd")
-        os.makedirs(akd_dir, exist_ok=True)
-        csv_file = os.path.join(akd_dir, f"{clean_t}_akd.csv")
+        csv_file = os.path.join(self.akd_dir, f"{clean_t}_akd.csv")
 
         if os.path.exists(csv_file):
             try:
@@ -193,39 +194,24 @@ class BistAkdFlowEngine:
             seller_intent = "Doğrulanmış Kurumsal Satış (Lisanslı AKD)"
             feed_label = direct_feed["feed_source"]
         else:
-            base_top5_buy = 65.0 + (cmf * 25.0) + (vwap_delta * 1.5)
-            base_top5_buy = max(40.0, min(92.0, base_top5_buy))
+            # Gerçek aracı kurum dosyası yok: kurum payı ve kurum adı OHLCV'den türetilemez, uydurulmaz.
+            base_top5_buy = None
 
-            base_top5_sell = 100.0 - (base_top5_buy * 0.75)
-            base_top5_sell = max(35.0, min(88.0, base_top5_sell))
+            base_top5_sell = None
 
-            net_concentration = base_top5_buy - base_top5_sell
-            feed_label = "Emir Akışı & CMF İstatistiksel Modellemesi"
+            net_concentration = None
+            feed_label = "Yalnızca OHLCV (aracı kurum dağılımı verisi yok)"
+            lead_buyer = lead_seller = buyer_intent = seller_intent = NO_DATA
 
-            if cmf > 0.10:
-                lead_buyer = "Bank of America & İş Yatırım (Model Öngörüsü)"
-                buyer_intent = "Kurumsal Akümülasyon (Sessiz Toplama)"
-                lead_seller = "Diğer / Perakende Satıcılar"
-                seller_intent = "Küçük Yatırımcı Kâr Realizasyonu"
-            elif cmf < -0.10:
-                lead_buyer = "Diğer / Perakende Alıcılar"
-                buyer_intent = "Düşen Bıçağı Tutma Çabası"
-                lead_seller = "Bank of America & QNB Finans (Model Öngörüsü)"
-                seller_intent = "Kurumsal Dağıtım (Mal Çıkışı / Distribution)"
-            else:
-                lead_buyer = "İş Yatırım & Garanti BBVA"
-                buyer_intent = "Dengeli Piyasa Yapıcı Alımı"
-                lead_seller = "Yapı Kredi & Diğerleri"
-                seller_intent = "Rutin Karşılıklı İşlemler"
 
-        # Kurumsal Balina Skoru: [-1.0 ile +1.0]
+        # Para akışı bileşik skoru (OHLCV türevi; kurum verisi içermez): [-1.0 ile +1.0]
         whale_score = (cmf * 0.4) + ((mfi - 50.0) / 50.0 * 0.3) + ((buying_p - 50.0) / 50.0 * 0.3)
         whale_score = max(-1.0, min(1.0, whale_score))
 
         if whale_score > 0.20:
-            status_badge = "🚀 GÜÇLÜ PARA GİRİŞİ (Whale Inflow)"
+            status_badge = "🚀 GÜÇLÜ PARA GİRİŞİ (Hacim Akışı)"
         elif whale_score < -0.20:
-            status_badge = "🔻 GÜÇLÜ PARA ÇIKIŞI (Whale Outflow)"
+            status_badge = "🔻 GÜÇLÜ PARA ÇIKIŞI (Hacim Akışı)"
         else:
             status_badge = "⚪ DENGELİ / NÖTR AKIŞ"
 
@@ -236,9 +222,10 @@ class BistAkdFlowEngine:
             "vwap": mf["vwap"],
             "vwap_delta_pct": vwap_delta,
             "buying_pressure_pct": buying_p,
-            "top5_buy_pct": round(base_top5_buy, 1),
-            "top5_sell_pct": round(base_top5_sell, 1),
-            "net_concentration_pct": round(net_concentration, 1),
+            "is_real_feed": bool(direct_feed.get("is_real_feed")),
+            "top5_buy_pct": base_top5_buy,
+            "top5_sell_pct": base_top5_sell,
+            "net_concentration_pct": net_concentration,
             "whale_score": round(whale_score, 2),
             "lead_buyer": lead_buyer,
             "buyer_intent": buyer_intent,
@@ -252,19 +239,27 @@ class BistAkdFlowEngine:
         """Komite raporu ve konsol çıktısı için yapılandırılmış AKD özet metni üretir."""
         akd = self.analyze_akd_profile(ticker, df)
         
-        summary = f"""## 📊 TAKASBANK & AKD (ARACI KURUM DAĞILIMI) PARA AKIŞI RADARI ({ticker})
+        if akd["is_real_feed"]:
+            broker_section = f"""### 🏛️ Aracı Kurum Dağılımı ({akd['feed_label']}):
+* **İlk 5 Alıcı Kurum Payı:** **%{akd['top5_buy_pct']:.1f}** (`{akd['lead_buyer']}`)
+* **İlk 5 Satıcı Kurum Payı:** **%{akd['top5_sell_pct']:.1f}** (`{akd['lead_seller']}`)
+* **Net Kurum Konsantrasyon Dengesi:** **%{akd['net_concentration_pct']:+.1f}** *(Pozitif değer alıcı tarafta yoğunlaşmayı gösterir)*
+"""
+        else:
+            broker_section = f"""### 🏛️ Aracı Kurum Dağılımı: {NO_DATA}
+* Aracı kurum dağılımı dosyası bulunamadı. Yukarıdaki göstergeler yalnızca fiyat-hacim (OHLCV) verisinden türetilmiştir;
+  hangi kurumun alıp sattığı bilinmiyor. Kurum bazlı çıkarım yapmayınız.
+"""
+
+        summary = f"""## 📊 PARA AKIŞI GÖSTERGELERİ ({ticker})
 * **Para Akışı Durumu:** **{akd['status_badge']}**
-* **Kurumsal Balina Skoru (Whale Score):** **{akd['whale_score']:+.2f}** `[-1.0 (Dağıtım) ile +1.0 (Akümülasyon)]`
+* **Para Akışı Bileşik Skoru (OHLCV türevi):** **{akd['whale_score']:+.2f}** `[-1.0 (Çıkış) ile +1.0 (Giriş)]`
 * **Chaikin Money Flow (CMF 20G):** **{akd['cmf_20']:+.3f}** *(>0: Para Girişi, <0: Para Çıkışı)*
 * **Money Flow Index (MFI 14G):** **{akd['mfi_14']:.1f} / 100** *(50 Üzeri Pozitif Hacim İvmesi)*
 * **20 Günlük VWAP (Hacim Ağırlıklı Fiyat):** **{akd['vwap']:.2f} TRY** *(Fiyatın VWAP'a Farkı: %{akd['vwap_delta_pct']:+.2f})*
 * **Son 5 Gün Alıcı Baskı Gücü:** **%{akd['buying_pressure_pct']:.1f}**
 
-### 🏛️ İlk 5 Kurum Konsantrasyon & Balina Hareketleri:
-* **İlk 5 Alıcı Kurum Payı:** **%{akd['top5_buy_pct']:.1f}** (`{akd['lead_buyer']}` -> *{akd['buyer_intent']}*)
-* **İlk 5 Satıcı Kurum Payı:** **%{akd['top5_sell_pct']:.1f}** (`{akd['lead_seller']}` -> *{akd['seller_intent']}*)
-* **Net Kurum Konsantrasyon Dengesi:** **%{akd['net_concentration_pct']:+.1f}** *(Pozitif değer kurumsal toplamayı teyit eder)*
-"""
+{broker_section}"""
         return summary
 
     def scan_akd_universe(self, tickers: list[str]) -> list[dict]:

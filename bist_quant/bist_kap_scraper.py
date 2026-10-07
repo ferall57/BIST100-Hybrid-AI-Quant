@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
 """
 📂 KRONOS KAP (KAMUYU AYDINLATMA PLATFORMU) & BIST BİLDİRİM KAZIYICI
-(Awesome-MCP Browser Automation & Data Extraction Deseninden Esinlenilmiştir)
 
 Özellikler:
-1. Kamuyu Aydınlatma Platformu (KAP) resmi bildirim akışını canlı izler.
-2. Özel Durum Açıklamaları, Pay Geri Alımları, Yeni İhaleler, Temettü ve Finansal Raporları ayıklar.
-3. Kural tabanlı ve NLP duygu analizi ile bildirimleri sınıflandırır:
+1. Kamuyu Aydınlatma Platformu (KAP) bildirim akışını sorgular.
+2. Kural tabanlı anahtar kelime analizi ile bildirimleri sınıflandırır:
    - 🟢 POZİTİF (Pay Geri Alımı, İhale Kazanımı, Yüksek Kâr)
    - 🔴 NEGATİF (SPK Cezası, Zarar, Yönetici İstifası)
    - ⚪ NÖTR (Rutin Genel Kurul, Kayıtlı Sermaye Tavanı vb.)
-4. Komite üyelerine (özellikle NLP ve Temel Analiste) doğrudan taze veri sağlar.
+3. Kaynağa ulaşılamazsa bildirim uydurmaz; komiteye açıkça "VERİ YOK" bildirir.
 """
 
-import os
 import sys
-import json
 import time
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Windows konsol Unicode uyumluluğu
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
 
 KAP_API_URL = "https://www.kap.org.tr/tr/api/disclosures"
-KAP_SEARCH_URL = "https://www.kap.org.tr/tr/bulten-arama"
+REQUEST_TIMEOUT_SECONDS = 6
+NO_DATA = "VERİ YOK"
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
@@ -47,63 +43,53 @@ class BistKapScraper:
         return ticker.upper().replace(".IS", "").strip()
 
     def fetch_disclosures(self, ticker: str, max_items: int = 5) -> list[dict]:
-        """
-        Belirli bir hisse senedi için en güncel KAP bildirimlerini çeker ve analiz eder.
-        Önbellekleme mekanizması ile sunucuyu gereksiz yormaz.
-        """
-        clean_t = self._clean_ticker(ticker)
-        cache_key = f"{clean_t}_{max_items}"
-        
-        now = time.time()
-        if cache_key in self._cache:
-            data, exp = self._cache[cache_key]
-            if now < exp:
-                return data
-
-        disclosures = []
-        try:
-            # KAP resmi API sorgusu (Hisse kodu ve son bildirimler)
-            # Not: KAP zaman zaman IP filtrelemesi yapabileceğinden fallback mekanizmalı
-            payload = {
-                "disclosureType": "ALL",
-                "stockCode": clean_t,
-                "period": "TODAY_AND_YESTERDAY"
-            }
-            
-            # 1. Öncelik: Doğrudan KAP API çağrısı
-            res = self.session.get(
-                f"https://www.kap.org.tr/tr/api/disclosures?stockCode={clean_t}",
-                timeout=6
-            )
-            
-            if res.status_code == 200:
-                raw_data = res.json()
-                items = raw_data if isinstance(raw_data, list) else raw_data.get("disclosures", [])
-                for item in items[:max_items]:
-                    d_obj = self._parse_api_item(item, clean_t)
-                    if d_obj:
-                        disclosures.append(d_obj)
-        except Exception:
-            # Fallback: KAP API erişilemezse yedek açık kaynak bildirim formatı oluştur
-            pass
-
-        # Eğer canlı API'den bildirim dönmediyse (hafta sonu veya API sessizliği),
-        # hissenin son durum özetini formatla
-        if not disclosures:
-            disclosures = self._generate_fallback_disclosures(clean_t)
-
-        self._cache[cache_key] = (disclosures, now + self.cache_ttl)
+        """Hissenin güncel KAP bildirimlerini döndürür; kaynağa ulaşılamazsa boş liste."""
+        disclosures, _ = self._fetch_cached(ticker, max_items)
         return disclosures
 
+    def _fetch_cached(self, ticker: str, max_items: int) -> tuple[list[dict], bool]:
+        """(bildirimler, kaynak_yanıt_verdi_mi) çiftini önbellekli döndürür."""
+        clean_t = self._clean_ticker(ticker)
+        cache_key = f"{clean_t}_{max_items}"
+
+        now = time.time()
+        if cache_key in self._cache:
+            result, exp = self._cache[cache_key]
+            if now < exp:
+                return result
+
+        result = self._fetch_from_source(clean_t, max_items)
+        self._cache[cache_key] = (result, now + self.cache_ttl)
+        return result
+
+    def _fetch_from_source(self, clean_t: str, max_items: int) -> tuple[list[dict], bool]:
+        try:
+            res = self.session.get(f"{KAP_API_URL}?stockCode={clean_t}", timeout=REQUEST_TIMEOUT_SECONDS)
+            if res.status_code != 200:
+                print(f"[UYARI] KAP kaynağı {clean_t} için HTTP {res.status_code} döndürdü.")
+                return [], False
+            raw_data = res.json()
+        except Exception as e:
+            print(f"[UYARI] KAP bildirimi alınamadı ({clean_t}): {e}")
+            return [], False
+
+        if isinstance(raw_data, dict):
+            raw_data = raw_data.get("disclosures", [])
+        if not isinstance(raw_data, list):
+            print(f"[UYARI] KAP kaynağı {clean_t} için beklenmeyen biçimde yanıt verdi.")
+            return [], False
+
+        return [self._parse_api_item(item, clean_t) for item in raw_data[:max_items]], True
+
     def _parse_api_item(self, item: dict, ticker: str) -> dict:
-        """KAP JSON bildirimini ayıklar ve NLP duygu skorunu atar."""
+        """KAP JSON bildirimini ayıklar ve anahtar kelime duygu skorunu atar."""
         title = item.get("title", item.get("disclosureTitle", "Özel Durum Açıklaması"))
         summary = item.get("summary", item.get("disclosureSummary", ""))
         publish_date = item.get("publishDate", item.get("ruleName", "Bugün"))
         disc_type = item.get("disclosureType", "Genel")
-        
+
         sentiment, impact, score = self._classify_sentiment(title + " " + summary)
-        
+
         return {
             "ticker": ticker,
             "title": title,
@@ -118,13 +104,13 @@ class BistKapScraper:
     def _classify_sentiment(self, text: str) -> tuple[str, str, float]:
         """Bildirim metninde anahtar kelimelere dayalı hızlı NLP duygu analizi."""
         t_low = text.lower()
-        
+
         bullish_keywords = [
-            "geri alım", "pay geri alım", "ihale", "yeni iş ilişkisi", "sözleşme", 
+            "geri alım", "pay geri alım", "ihale", "yeni iş ilişkisi", "sözleşme",
             "kâr", "artış", "temettü", "bedelsiz", "rekor", "onaylandı", "satış hasılatı"
         ]
         bearish_keywords = [
-            "ceza", "spk", "zarar", "dava", "iptal", "istifa", "soruşturma", 
+            "ceza", "spk", "zarar", "dava", "iptal", "istifa", "soruşturma",
             "düşüş", "tahkim", "tedbir", "kısıtlama", "iflas"
         ]
 
@@ -138,36 +124,32 @@ class BistKapScraper:
         else:
             return "NÖTR / BİLGİLENDİRME", "NEUTRAL", 0.0
 
-    def _generate_fallback_disclosures(self, ticker: str) -> list[dict]:
-        """KAP seans kapalıyken veya veri gecikmesinde varsayılan temiz kurumsal durum üretir."""
-        return [{
-            "ticker": ticker,
-            "title": f"{ticker} Olağan Faaliyet & Kurumsal Akış",
-            "summary": "Son 24 saatte olağandışı negatif SPK yaptırımı veya iflas bildirimi bulunmamaktadır. Şirket faaliyetleri olağan seyrinde devam etmektedir.",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "type": "Faaliyet Bülteni",
-            "sentiment": "NÖTR / POZİTİF",
-            "impact_label": "ROUTINE_HEALTHY",
-            "sentiment_score": 0.15
-        }]
-
     def generate_kap_report(self, ticker: str) -> str:
         """Komite toplantısı için yapılandırılmış markdown KAP brifingi oluşturur."""
-        disclosures = self.fetch_disclosures(ticker, max_items=3)
+        disclosures, source_ok = self._fetch_cached(ticker, max_items=3)
         clean_t = self._clean_ticker(ticker)
-        
+
         lines = [
             f"📰 **KAP (KAMUYU AYDINLATMA PLATFORMU) VE KURUMSAL BİLDİRİM BRİFİNGİ ({clean_t}):**",
             f"  • **İncelenen Şirket:** {clean_t} | **Tarama Zamanı:** {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         ]
-        
+
+        if not source_ok:
+            lines.append(f"  • **Durum:** {NO_DATA} — KAP kaynağına ulaşılamadı. Bu, olumlu ya da olumsuz bildirim "
+                         "olmadığı anlamına gelmez; KAP bildirimleri hakkında çıkarım yapmayınız.")
+            return "\n".join(lines)
+
+        if not disclosures:
+            lines.append("  • **Durum:** Kaynak yanıt verdi; bu hisse için bildirim listelenmedi.")
+            return "\n".join(lines)
+
         for idx, d in enumerate(disclosures, 1):
             badge = "🟢" if "POZİTİF" in d["sentiment"] else ("🔴" if "NEGATİF" in d["sentiment"] else "⚪")
             lines.append(f"  {idx}. {badge} **[{d['type']}]** {d['title']}")
             if d.get("summary"):
                 lines.append(f"     ↳ Özet: {d['summary'][:140]}...")
             lines.append(f"     ↳ Duygu Analizi: **{d['sentiment']}** (Skor: {d['sentiment_score']:+.2f})")
-            
+
         return "\n".join(lines)
 
 if __name__ == "__main__":

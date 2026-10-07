@@ -23,7 +23,7 @@ if ROOT_DIR not in sys.path:
 from bist_quant.bist_downloader import download_bist_universe, download_ticker_data, trim_to_period, RAW_DATA_DIR
 from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
-from hybrid_agents.bist_committee import BistHybridCommittee
+from hybrid_agents.bist_committee import BistHybridCommittee, load_market_history
 from bist_quant.bist_scanner import BistScanner
 from bist_quant.bist_backtester import BistBacktester
 from bist_quant.bist_sentiment import BistSentimentEngine
@@ -100,12 +100,12 @@ def handle_econometrics(ticker: str, days: int = 15):
         df = trim_to_period(pd.read_csv(csv_file), "5y")
         econ = BistEconometrics()
         print("\n" + "="*85)
-        print(econ.generate_econometric_report(df, t, forecast_days=days))
+        print(econ.generate_econometric_report(df, t, forecast_days=days, df_market=load_market_history("5y")))
         print("="*85 + "\n")
     except Exception as e:
         print(f"\n[EKONOMETRİ HATASI] Analiz sırasında problem oluştu: {e}")
 
-def handle_portfolio_opt(tickers_str: str, target: str = "max_sharpe", rf: float = 0.45):
+def handle_portfolio_opt(tickers_str: str, target: str = "max_sharpe", rf: float = None):
     try:
         tickers = [t.strip().upper() for t in tickers_str.split(",") if t.strip()]
         formatted_tickers = [t if t.endswith(".IS") else f"{t}.IS" for t in tickers]
@@ -127,7 +127,7 @@ def handle_portfolio_opt(tickers_str: str, target: str = "max_sharpe", rf: float
         kelly_res = optimizer.calculate_kelly_portfolio(mean_ret, cov, fraction=0.5)
 
         print("\n" + "="*90)
-        print(f"📊 KURUMSAL ÇOKLU MODEL PORTFÖY TAHSİS RAPORU (Gösterge Faiz: %{rf*100:.1f})")
+        print(f"📊 KURUMSAL ÇOKLU MODEL PORTFÖY TAHSİS RAPORU (Risksiz Faiz Varsayımı: %{optimizer.rf_annual*100:.1f})")
         print("="*90)
         print(f"{'Hisse':<12} {'Markowitz (MVO)':<18} {'HRP (Lopez de Prado)':<24} {'Black-Litterman':<20} {'Kelly (0.5x)':<15}")
         print("-" * 90)
@@ -394,7 +394,8 @@ def handle_akd_scan(mode: str = "bist30", top_n: int = 15):
         print(f"{'Sıra':<5} {'Sembol':<10} {'Fiyat':<10} {'Balina Skoru':<14} {'CMF(20G)':<11} {'MFI(14G)':<10} {'İlk 5 Alıcı %':<15} {'Durum':<20}")
         print("-" * 85)
         for idx, r in enumerate(results, 1):
-            print(f"{idx:<5} {r['ticker']:<10} {r['close']:<10.2f} {r['whale_score']:<+14.2f} {r['cmf_20']:<+11.3f} {r['mfi_14']:<10.1f} %{r['top5_buy_pct']:<14.1f} {r['status_badge']:<20}")
+            top5_text = f"%{r['top5_buy_pct']:.1f}" if r['top5_buy_pct'] is not None else "VERİ YOK"
+            print(f"{idx:<5} {r['ticker']:<10} {r['close']:<10.2f} {r['whale_score']:<+14.2f} {r['cmf_20']:<+11.3f} {r['mfi_14']:<10.1f} {top5_text:<15} {r['status_badge']:<20}")
         print("="*85 + "\n")
     except Exception as e:
         print(f"\n[AKD TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
