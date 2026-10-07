@@ -62,10 +62,10 @@ def handle_download(mode="bist100", period="max", workers=8):
     preprocess_bist_for_kronos()
     print("\n[BAŞARILI] Veri Hazırlığı Bitti! Artık '--train-kronos' ile derin eğitim başlatabilir veya '--analyze <SEMBOL>' kullanabilirsiniz.")
 
-def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6, skip_tok=False):
+def handle_train(epochs_tok=15, epochs_pred=25, batch_size=2, accum=16, lr=1e-6, skip_tok=False, fresh=False, train_steps=None, val_steps=None):
     print("\n[EGITIM YONETICISI] 4GB VRAM Optimize Derin BIST 100 İnce Ayar (Fine-Tuning) Başlatılıyor...")
     generate_bist_config(epochs_tokenizer=epochs_tok, epochs_predictor=epochs_pred, batch_size=batch_size, accum_steps=accum, lr_predictor=lr, train_tokenizer=not skip_tok)
-    run_training(skip_tokenizer=skip_tok)
+    run_training(skip_tokenizer=skip_tok, fresh=fresh, train_steps=train_steps, val_steps=val_steps)
 
 def handle_analyze(ticker: str, days: int = 15, model: str = "gemini-2.5-flash", temp: float = 0.3):
     if not ticker:
@@ -514,6 +514,9 @@ def main():
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayısı")
     parser.add_argument("--pred-epochs", type=int, default=25, help="Fine-tuning: Predictor epok sayısı")
     parser.add_argument("--batch-size", type=int, default=2, help="Batch size")
+    parser.add_argument("--fresh-train", action="store_true", help="Fine-tuning: mevcut modeli arşivleyip önceden eğitilmiş Kronos ağırlıklarından başla")
+    parser.add_argument("--train-steps", type=int, default=None, help="Fine-tuning: epoch başına eğitim adımı sınırı (tanımsızsa tüm pencereler)")
+    parser.add_argument("--val-steps", type=int, default=None, help="Fine-tuning: epoch başına doğrulama adımı sınırı")
     parser.add_argument("--workers", type=int, default=8, help="Veri indirmedeki paralel thread sayısı")
     
     if len(sys.argv) == 1:
@@ -529,9 +532,11 @@ def main():
     if args.download_all:
         handle_download(mode=args.download_mode, period="max", workers=args.workers)
     if args.train_kronos:
-        handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=False)
+        handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=False,
+                     fresh=args.fresh_train, train_steps=args.train_steps, val_steps=args.val_steps)
     if args.train_predictor:
-        handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=True)
+        handle_train(epochs_tok=args.tok_epochs, epochs_pred=args.pred_epochs, batch_size=args.batch_size, skip_tok=True,
+                     fresh=args.fresh_train, train_steps=args.train_steps, val_steps=args.val_steps)
     if args.analyze:
         handle_analyze(args.analyze, days=args.days, model=args.model)
     if args.econometrics:

@@ -41,3 +41,6 @@ committee_episodic_memory.json
 .DS_Store
 scratch/
 
+
+# Yeniden eğitimde arşivlenen eski model klasörleri
+models/bist_kronos/*_legacy_*/
