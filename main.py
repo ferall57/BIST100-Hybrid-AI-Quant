@@ -446,6 +446,27 @@ def handle_akd_scan(mode: str = "bist30", top_n: int = 15):
     except Exception as e:
         print(f"\n[AKD TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
 
+def handle_compare_models(mode: str = "bist30", origins_per_ticker: int = 12):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        from bist_quant.bist_model_eval import run_comparison
+        metrics, pairs, report_path = run_comparison(get_tickers(mode=mode), origins_per_ticker=origins_per_ticker)
+        print("\n" + "="*100)
+        print(f"KRONOS MODEL KARŞILAŞTIRMASI - {mode.upper()}")
+        print("="*100)
+        print(f"{'Model':<18} {'Ufuk':<6} {'Yön %':<8} {'Hata %':<9} {'Naif %':<9} {'Beceri %':<10} {'IC':<8}")
+        print("-" * 100)
+        for row in metrics.itertuples(index=False):
+            print(f"{row.model:<18} {row.horizon:<6} {row.directional_accuracy_pct:<8.1f} {row.mae_pct:<9.2f} {row.naive_mae_pct:<9.2f} {row.skill_vs_naive_pct:<+10.1f} {row.information_coefficient:<+8.3f}")
+        print("-" * 100)
+        for pair in pairs:
+            closer = "—" if pair["first_closer_pct"] is None else f"%{pair['first_closer_pct']:.1f}"
+            print(f"  • {pair['first']} vs {pair['second']}: daha yakın {closer}, hata farkı {pair['mean_abs_error_diff']:+.2f} puan, p={pair['p_value']:.3f}")
+        print("="*100)
+        print(f"Rapor: {report_path}")
+    except Exception as e:
+        print(f"\n[MODEL KARŞILAŞTIRMA HATASI] {e}")
+
 def handle_bot():
     from private_interactive_telegram import InteractiveTelegramBot
     import time
@@ -494,6 +515,8 @@ def main():
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini otomatik tara ve en iyi fırsatları keşfet")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
     parser.add_argument("--backtest-universe", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Aynı backtest kurallarını tüm evrende koş; medyan fark ve Al-Tut'u geçen hisse oranını raporla")
+    parser.add_argument("--compare-models", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Temel Kronos ile ince ayarlı modelleri aynı hisse ve tarihlerde tahmin isabetine göre karşılaştır")
+    parser.add_argument("--origins", type=int, default=12, help="Model karşılaştırmasında hisse başına tahmin noktası sayısı")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
     parser.add_argument("--bot", action="store_true", help="Çift yönlü interaktif Telegram komuta botunu arka planda dinleyici olarak başlat")
     parser.add_argument("--sync-db", action="store_true", help="Tüm CSV mum verilerini yerel DuckDB analitik tablosuna senkronize et")
@@ -564,6 +587,8 @@ def main():
     if args.backtest:
         handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage,
                         commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
+    if args.compare_models:
+        handle_compare_models(mode=args.compare_models, origins_per_ticker=args.origins)
     if args.backtest_universe:
         handle_backtest_universe(mode=args.backtest_universe, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest,
                                  use_viop=args.viop, leverage=args.leverage, commission_bps=args.commission_bps,
