@@ -28,22 +28,23 @@ def _candle_keys(timestamps: pd.Series, daily: bool) -> pd.Series:
     as_text = timestamps.astype(str)
     return as_text.str[:10] if daily else as_text
 
+def normalize_timestamps(df: pd.DataFrame, daily: bool = True) -> pd.DataFrame:
+    """
+    Zaman damgalarını tek biçime getirir. Günlük mumda yalnızca takvim günü ('YYYY-AA-GG') tutulur:
+    saat dilimi ekleri yaz/kış saati dönemlerinde değiştiği için aynı sütunda karışır ve tarih
+    ayrıştırmasını bozar.
+    """
+    return df.assign(timestamps=_candle_keys(df["timestamps"], daily))
+
 def merge_candles(existing: pd.DataFrame, fresh: pd.DataFrame, daily: bool = True) -> pd.DataFrame:
     """
     Diskteki geçmişi yeni indirilen mumlarla birleştirir. Aynı muma ait satırda yeni veri kazanır;
     kısa periyotlu bir indirme daha uzun geçmişi silmez.
     """
-    if existing.empty:
-        return fresh.assign(timestamps=fresh["timestamps"].astype(str)).reset_index(drop=True)
-    combined = pd.concat(
-        [existing.assign(timestamps=existing["timestamps"].astype(str)),
-         fresh.assign(timestamps=fresh["timestamps"].astype(str))],
-        ignore_index=True,
-    )
-    keys = _candle_keys(combined["timestamps"], daily)
-    combined = combined.loc[~keys.duplicated(keep="last")]
-    order = _candle_keys(combined["timestamps"], daily).sort_values(kind="stable").index
-    return combined.loc[order].reset_index(drop=True)
+    frames = [normalize_timestamps(frame, daily) for frame in (existing, fresh) if not frame.empty]
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.loc[~combined["timestamps"].duplicated(keep="last")]
+    return combined.sort_values("timestamps", kind="stable").reset_index(drop=True)
 
 def histories_are_consistent(existing: pd.DataFrame, fresh: pd.DataFrame, daily: bool = True) -> bool:
     """
@@ -124,11 +125,13 @@ def download_ticker_data(ticker: str, period: str = "max", interval: str = "1d",
         final_cols = ["timestamps", "open", "high", "low", "close", "volume", "amount"]
         df = df[final_cols].sort_values("timestamps").reset_index(drop=True)
 
+        is_daily = not interval.endswith(INTRADAY_SUFFIXES)
+        df = normalize_timestamps(df, daily=is_daily)
+
         # Diskte daha uzun bir geçmiş varsa koru: farklı periyotlu çağrılar aynı dosyayı paylaşır
         if os.path.exists(file_path):
             try:
                 existing = pd.read_csv(file_path)[final_cols]
-                is_daily = not interval.endswith(INTRADAY_SUFFIXES)
                 if histories_are_consistent(existing, df, daily=is_daily):
                     df = merge_candles(existing, df, daily=is_daily)
                 elif len(existing) > len(df):

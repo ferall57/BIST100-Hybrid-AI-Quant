@@ -49,6 +49,29 @@ def test_same_day_matches_across_timezone_formats():
     assert merged["close"].iloc[0] == 12.0
 
 
+def test_daily_candles_are_stored_without_timezone_suffix():
+    # 2016 öncesi Türkiye yaz/kış saati uyguluyordu: aynı dosyada +02:00 ve +03:00 ekleri karışır
+    # ve pandas karışık ekli sütunu tarih olarak ayrıştıramaz.
+    existing = _frame(["2015-01-05", "2015-07-06"]).assign(
+        timestamps=["2015-01-05 00:00:00+02:00", "2015-07-06 00:00:00+03:00"]
+    )
+    fresh = _frame(["2026-10-07"])
+
+    merged = merge_candles(existing, fresh)
+
+    assert merged["timestamps"].tolist() == ["2015-01-05", "2015-07-06", "2026-10-07"]
+    assert pd.to_datetime(merged["timestamps"]).dt.year.tolist() == [2015, 2015, 2026]
+
+
+def test_intraday_candles_keep_their_full_timestamp():
+    existing = _frame(["2026-10-07"]).assign(timestamps=["2026-10-07 10:00:00+03:00"])
+    fresh = _frame(["2026-10-07"]).assign(timestamps=["2026-10-07 11:00:00+03:00"])
+
+    merged = merge_candles(existing, fresh, daily=False)
+
+    assert merged["timestamps"].tolist() == ["2026-10-07 10:00:00+03:00", "2026-10-07 11:00:00+03:00"]
+
+
 def test_merge_with_empty_existing_returns_fresh():
     fresh = _frame(["2026-10-06"])
 

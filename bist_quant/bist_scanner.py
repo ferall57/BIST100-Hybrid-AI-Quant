@@ -20,6 +20,13 @@ from bist_quant.bist_index_gatekeeper import BistIndexGatekeeper
 
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
 
+def should_rank_with_kronos(quant_engine) -> bool:
+    """Kronos tahmini yalnızca model doğrulanmışsa (naif tahmini geçtiyse) sıralama puanına girer."""
+    if quant_engine is None or getattr(quant_engine, "predictor", None) is None:
+        return False
+    validation = getattr(quant_engine, "validation", None)
+    return bool(validation is not None and validation.is_validated)
+
 class BistScanner:
     """
     BIST 100 / BIST 30 hisse evrenini otomatik tarayan, 
@@ -84,7 +91,7 @@ class BistScanner:
             trend_label = "NÖTR"
             
             # Quant tahmin motoru devredeyse hızlı tahmin puanı al
-            if self.quant_engine and hasattr(self.quant_engine, 'predictor') and self.quant_engine.predictor is not None:
+            if should_rank_with_kronos(self.quant_engine):
                 try:
                     lookback = min(128, len(df))
                     hist_df = df.iloc[-lookback:].copy().reset_index(drop=True)
@@ -209,6 +216,8 @@ class BistScanner:
         print(f"📊 Hedef Evren : {mode.upper()} ({len(tickers)} Hisse)")
         print(f"🎯 Hedef Filtre: En Yüksek A+ Potansiyelli İlk {top_n} Hisse")
         print(f"🔮 Quant Vade  : 1 Hafta (5G) & {forecast_days} İşlem Günü")
+        ranking_source = "Kronos tahmini + teknik" if should_rank_with_kronos(self.quant_engine) else "Teknik momentum (Kronos doğrulanmadığı için sıralamada kullanılmıyor)"
+        print(f"🧭 Sıralama    : {ranking_source}")
         print("="*80)
 
         # 1. AŞAMA: Hızlı Ön Eleme (Funnel 1)

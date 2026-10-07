@@ -1,0 +1,37 @@
+{
+  "evaluated_at": "2026-10-07 19:01",
+  "period_start": "2025-11-03",
+  "period_end": "2026-09-15",
+  "models": {
+    "Temel Kronos": {
+      "horizon": "15G",
+      "n": 396,
+      "directional_accuracy_pct": 50.75757575757576,
+      "mae_pct": 14.938810662011063,
+      "naive_mae_pct": 8.226714170585645,
+      "skill_vs_naive_pct": -81.58903241617786,
+      "information_coefficient": 0.10342238828034193,
+      "weights_fingerprint": null
+    },
+    "Yeni ince ayar": {
+      "horizon": "15G",
+      "n": 396,
+      "directional_accuracy_pct": 48.23232323232323,
+      "mae_pct": 11.091445039178945,
+      "naive_mae_pct": 8.226714170585645,
+      "skill_vs_naive_pct": -34.822297325414,
+      "information_coefficient": 0.06950981614119707,
+      "weights_fingerprint": 1791378806.552286
+    },
+    "Eski ince ayar": {
+      "horizon": "15G",
+      "n": 396,
+      "directional_accuracy_pct": 48.73737373737374,
+      "mae_pct": 17.41324737122569,
+      "naive_mae_pct": 8.226714170585645,
+      "skill_vs_naive_pct": -111.66710074219188,
+      "information_coefficient": 0.06924662239523702,
+      "weights_fingerprint": null
+    }
+  }
+}

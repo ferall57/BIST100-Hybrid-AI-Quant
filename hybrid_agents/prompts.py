@@ -1,5 +1,10 @@
 # BIST (Borsa İstanbul) Özelleştirilmiş Yapay Zeka Ajan Promptları
 
+KRONOS_VALIDATION_RULE = (
+    "KRONOS KURALI: Kronos raporundaki 'Model Doğrulama Durumu' DOĞRULANMADI ise Kronos tahminlerini yön, "
+    "hedef fiyat, güven katsayısı veya karar etki ağırlığı için gerekçe yapma; yalnızca doğrulanmamış model çıktısı olarak an."
+)
+
 DATA_INTEGRITY_RULE = (
     "VERİ BÜTÜNLÜĞÜ KURALI: 'VERİ YOK' olarak işaretlenen alanlar için sayı, kurum adı veya olay uydurma; "
     "o alana dayanan çıkarım yapma ve eksikliği raporunda açıkça belirt."
@@ -60,6 +65,7 @@ Geçmiş Mum Özeti (Son 5 Gün):
 
 Kronos-Base (Yapay Zeka Quant Tahmin Modeli) Çıktısı:
 {kronos_report}
+""" + KRONOS_VALIDATION_RULE + """
 
 Lütfen yukarıdaki verileri (XU100 Endeks Kapısı, ICT BSL/SSL Likidite Avı, FVG %50 C.E. Denge Noktası, Hacimli Kırılım & Retest, AKD Para Akışı, Ekonometri ve Kronos-Base) sentezleyerek şu başlıklardan oluşan bir Teknik Rapor yaz:
 1. XU100 Endeks Rejimi ve Hisse Trend Uyumu (Endeks Kapısı Geçildi mi?)
@@ -154,6 +160,7 @@ KATI KURALLARIN:
 1. Eğer XU100 Gatekeeper "BEAR_REGIME" ise tekil hisselerde kesinlikle LONG alım verme; kararı "TUT" veya "VİOP SHORT / HEDGE" olarak açıkla.
 2. Fiyat aşırı primliyse veya FVG %50 C.E. / Retest seviyesinden uzaksa, piyasa fiyatından acele alım verme! Kesin Şartlı Tetikleyiciler bölümünde "%50 FVG C.E. seviyesine veya Retest desteğine geri çekilme halinde limit alım" şartı koy.
 3. """ + DATA_INTEGRITY_RULE + """
+4. """ + KRONOS_VALIDATION_RULE + """
 
 Hisse: {ticker}
 Güncel Fiyat: {current_price} TRY

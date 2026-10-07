@@ -11,6 +11,10 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 KRONOS_DIR = os.path.join(ROOT_DIR, "repos", "Kronos")
 if KRONOS_DIR not in sys.path:
     sys.path.insert(0, KRONOS_DIR)
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from bist_quant.kronos_validation import MODEL_BASE, MODEL_FINETUNED, format_banner, validation_status, weights_fingerprint
 
 try:
     from model import Kronos, KronosTokenizer, KronosPredictor
@@ -52,6 +56,7 @@ class BistKronosQuant:
         
         # Model (Predictor) Yükle
         model_path = "NeoQuasar/Kronos-base" if use_base_model else "NeoQuasar/Kronos-small"
+        self.model_name = MODEL_BASE
         for model_cand in [
             os.path.join(MODELS_DIR, "bist100_kronos_base", "basemodel", "best_model"),
             os.path.join(MODELS_DIR, "basemodel", "best_model")
@@ -59,6 +64,7 @@ class BistKronosQuant:
             if os.path.exists(model_cand):
                 print(f"🏆 BIST 100 üzerinde ustalaşarak fine-tune edilmiş Kronos modeli yüklendi -> {model_cand}")
                 model_path = model_cand
+                self.model_name = MODEL_FINETUNED
                 break
             
         print(f"🧠 Kronos Model Yüklendi: {model_path}")
@@ -66,6 +72,11 @@ class BistKronosQuant:
         
         # Predictor nesnesini bağla
         self.predictor = KronosPredictor(self.model, self.tokenizer, max_context=512, device=self.device)
+
+        # Modelin tahmin isabeti ölçülüp naif tahmini geçmediyse çıktısı "doğrulanmamış" olarak etiketlenir
+        fingerprint = weights_fingerprint() if self.model_name == MODEL_FINETUNED else None
+        self.validation = validation_status(self.model_name, current_fingerprint=fingerprint)
+        print(f"🔎 Kronos doğrulama durumu ({self.model_name}): {self.validation.label} — {self.validation.detail}")
 
     def generate_quant_report(self, ticker: str, pred_len: int = 15, lookback: int = 256, sample_count: int = 3):
         """
@@ -162,6 +173,8 @@ class BistKronosQuant:
         
         # Sözel Rapor Oluştur (TradingAgents Komitesine Gitmek Üzere)
         report = f"""# 📈 KRONOS-BASE QUANT AI - BIST TAHMİN RAPORU ({ticker})
+
+{format_banner(self.validation)}
 
 **Anlık Güncel Kapanış:** {current_close:.2f} TRY
 **Yapay Zeka Sinyali (Kısa Vade 1H):** **{trend_1w}** | **(Orta Vade {pred_len}G):** **{trend_label}**

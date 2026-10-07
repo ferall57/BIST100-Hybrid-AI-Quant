@@ -34,9 +34,7 @@ SAMPLING_TEMPERATURE = 0.8
 SAMPLING_TOP_P = 0.9
 BASE_SEED = 1234
 
-MODEL_BASE = "Temel Kronos"
-MODEL_FINETUNED = "Yeni ince ayar"
-MODEL_LEGACY = "Eski ince ayar"
+from bist_quant.kronos_validation import MODEL_BASE, MODEL_FINETUNED, MODEL_LEGACY, weights_fingerprint, write_validation
 
 
 # --- saf ölçü fonksiyonları ---------------------------------------------------
@@ -259,4 +257,6 @@ def run_comparison(tickers: list[str], origins_per_ticker: int = 12, sample_coun
         results[f"{name}|long"] = predictions["pred_pct"].to_numpy()
 
     metrics, pairs = summarise(results, names)
+    # Tahmin üreten ve sıralayan kod, modelin çıktısını bu özete göre doğrulanmış/doğrulanmamış diye etiketler
+    write_validation(metrics, results["origin_date"].min(), results["origin_date"].max(), {MODEL_FINETUNED: weights_fingerprint()})
     return metrics, pairs, write_report(metrics, pairs, results, cutoff, sample_count)
