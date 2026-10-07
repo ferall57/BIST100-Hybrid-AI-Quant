@@ -15,7 +15,7 @@ if ROOT_DIR not in sys.path:
 from bist_quant.bist_100_tickers import get_tickers
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
 from hybrid_agents.bist_committee import BistHybridCommittee
-from bist_quant.bist_price_action import BistPriceActionEngine
+from bist_quant.bist_price_action import BistPriceActionEngine, ict_setup_score
 from bist_quant.bist_index_gatekeeper import BistIndexGatekeeper
 
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -138,15 +138,7 @@ class BistScanner:
             pa_fvgs = self.price_action_engine.detect_fair_value_gaps(df)
             pa_retest = self.price_action_engine.detect_break_and_retest(df)
 
-            ict_bonus = 0.0
-            if pa_sweeps.get("ssl_swept"):
-                ict_bonus += 15.0  # SSL Dip Süpürmesi (Boğa Onayı)
-            if pa_sweeps.get("bsl_swept"):
-                ict_bonus -= 20.0  # BSL Tepe Tuzağı
-            if pa_retest.get("is_break_retest"):
-                ict_bonus += 15.0  # Kırılım & Düşük Hacimli Retest Onayı
-            if pa_fvgs.get("nearest_fvg") and pa_fvgs["nearest_fvg"].get("type") == "BULLISH_FVG":
-                ict_bonus += 10.0
+            ict_bonus = ict_setup_score(pa_sweeps, pa_fvgs, pa_retest)
 
             if expected_return > 3.0:
                 trend_label = "🔥 YÜKSELİŞ"

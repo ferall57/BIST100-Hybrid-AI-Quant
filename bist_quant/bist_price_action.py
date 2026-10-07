@@ -20,6 +20,25 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 
+ICT_SSL_SWEEP_BONUS = 15.0       # SSL dip süpürmesi (boğa onayı)
+ICT_BSL_SWEEP_PENALTY = -20.0    # BSL tepe tuzağı
+ICT_RETEST_BONUS = 15.0          # kırılım ve düşük hacimli retest onayı
+ICT_BULLISH_FVG_BONUS = 10.0     # en yakın boşluk boğa yönlü
+
+def ict_setup_score(sweeps: dict, fvgs: dict, retest: dict) -> float:
+    """Tespit edilen ICT kurulumlarının toplam puanı; pozitif değer boğa yönlü kurulum demektir."""
+    score = 0.0
+    if sweeps.get("ssl_swept"):
+        score += ICT_SSL_SWEEP_BONUS
+    if sweeps.get("bsl_swept"):
+        score += ICT_BSL_SWEEP_PENALTY
+    if retest.get("is_break_retest"):
+        score += ICT_RETEST_BONUS
+    nearest_fvg = fvgs.get("nearest_fvg")
+    if nearest_fvg and nearest_fvg.get("type") == "BULLISH_FVG":
+        score += ICT_BULLISH_FVG_BONUS
+    return score
+
 class BistPriceActionEngine:
     """
     Borsa İstanbul için ICT (Inner Circle Trader) ve Klasik Price Action Analiz Motoru.

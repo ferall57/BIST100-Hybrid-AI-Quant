@@ -467,6 +467,26 @@ def handle_compare_models(mode: str = "bist30", origins_per_ticker: int = 12):
     except Exception as e:
         print(f"\n[MODEL KARŞILAŞTIRMA HATASI] {e}")
 
+def handle_ablation(mode: str = "bist30", months: int = 12):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        from bist_quant.bist_ablation import run_ablation
+        summaries, report_path = run_ablation(get_tickers(mode=mode), months=months)
+        print("\n" + "="*112)
+        print(f"BİLEŞEN KATKI ÖLÇÜMÜ - {mode.upper()} (son {months} ay, maliyetler dahil, kural tabanlı tahminci)")
+        print("="*112)
+        print(f"{'Varyant':<26} {'Medyan %':<10} {'Fark %':<9} {'Al-Tut geçen %':<16} {'İşlem':<7} {'Temele göre %':<15} {'İyi/Kötü':<10} {'p':<6}")
+        print("-" * 112)
+        for s in summaries:
+            paired = "—" if s["median_diff_vs_baseline"] is None else f"{s['median_diff_vs_baseline']:+.2f}"
+            counts = "—" if s["improved"] is None else f"{s['improved']}/{s['worsened']}"
+            p_value = "—" if s["p_value"] is None else f"{s['p_value']:.3f}"
+            print(f"{s['variant']:<26} {s['median_return_pct']:<+10.2f} {s['median_alpha']:<+9.2f} {s['share_beating_bnh_pct']:<16.1f} {s['total_trades']:<7} {paired:<15} {counts:<10} {p_value:<6}")
+        print("="*112)
+        print(f"Rapor: {report_path}")
+    except Exception as e:
+        print(f"\n[KATKI ÖLÇÜMÜ HATASI] {e}")
+
 def handle_bot():
     from private_interactive_telegram import InteractiveTelegramBot
     import time
@@ -515,6 +535,7 @@ def main():
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini otomatik tara ve en iyi fırsatları keşfet")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
     parser.add_argument("--backtest-universe", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Aynı backtest kurallarını tüm evrende koş; medyan fark ve Al-Tut'u geçen hisse oranını raporla")
+    parser.add_argument("--ablation", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Giriş kurallarını (ICT, para akışı, XU100 kapısı, rejim filtresi) tek tek açıp kapatarak her birinin backtest sonucuna katkısını ölç")
     parser.add_argument("--compare-models", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Temel Kronos ile ince ayarlı modelleri aynı hisse ve tarihlerde tahmin isabetine göre karşılaştır")
     parser.add_argument("--origins", type=int, default=12, help="Model karşılaştırmasında hisse başına tahmin noktası sayısı")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
@@ -587,6 +608,8 @@ def main():
     if args.backtest:
         handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage,
                         commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
+    if args.ablation:
+        handle_ablation(mode=args.ablation, months=args.months)
     if args.compare_models:
         handle_compare_models(mode=args.compare_models, origins_per_ticker=args.origins)
     if args.backtest_universe:

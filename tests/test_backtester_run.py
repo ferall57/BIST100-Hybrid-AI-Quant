@@ -106,6 +106,38 @@ def test_training_cutoff_is_recorded_for_the_leakage_check(tmp_path):
     assert bist_backtester.load_training_cutoff(str(tmp_path / "yok.json")) is None
 
 
+def test_index_gate_blocks_long_entries_while_the_index_is_in_a_downtrend(sandbox):
+    _write_history(sandbox, "UP.IS", _uptrend())
+    _write_history(sandbox, "XU100.IS", 100.0 * np.cumprod(np.full(400, 0.995)))
+
+    baseline, _ = _run(NO_COSTS)
+    gated, _ = _run(NO_COSTS, entry_filters=("index_gate",))
+
+    assert baseline["total_trades"] > 0
+    assert gated["total_trades"] == 0
+    assert gated["blocked_entries"]["index_gate"] > 0
+
+
+def test_index_gate_lets_entries_through_while_the_index_is_rising(sandbox):
+    _write_history(sandbox, "UP.IS", _uptrend())
+    _write_history(sandbox, "XU100.IS", _uptrend())
+
+    gated, _ = _run(NO_COSTS, entry_filters=("index_gate",))
+
+    assert gated["total_trades"] > 0
+
+
+def test_backtest_can_skip_report_files(sandbox):
+    _write_history(sandbox, "UP.IS", _uptrend())
+
+    metrics, report_path, chart_path = BistBacktester(use_kronos=False, costs=NO_COSTS).run_walk_forward_backtest(
+        "UP.IS", months=6, write_artifacts=False
+    )
+
+    assert report_path is None and chart_path is None
+    assert metrics["total_trades"] > 0
+
+
 def test_universe_backtest_summarises_every_ticker(sandbox):
     _write_history(sandbox, "UP.IS", _uptrend())
     _write_history(sandbox, "FLAT.IS", np.full(400, 50.0))

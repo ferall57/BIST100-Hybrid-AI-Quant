@@ -14,6 +14,7 @@ if ROOT_DIR not in sys.path:
 from bist_quant.bist_downloader import download_ticker_data, RAW_DATA_DIR
 from bist_quant.bist_viop import BistViopEngine
 from bist_quant.market_assumptions import risk_free_rate
+from bist_quant.entry_filters import FILTER_INDEX_GATE, INDEX_TICKER, EntryFilters
 from bist_quant.backtest_engine import (
     LONG,
     SHORT,
@@ -51,7 +52,7 @@ ROLLOVER_FRICTION_RATE = 0.0015  # vade taşıma başına sürtünme (tahsis edi
 VIOP_EXPIRY_MONTHS = (2, 4, 6, 8, 10, 12)
 ROLLOVER_FROM_DAY = 25
 UNIVERSE_COLUMNS = ("total_return_pct", "bnh_return_pct", "alpha", "win_rate", "total_trades",
-                    "max_drawdown", "sharpe_ratio", "total_costs_try")
+                    "max_drawdown", "sharpe_ratio", "total_costs_try", "blocked_entries")
 
 
 def load_training_cutoff(path: str = TRAINING_CUTOFF_FILE) -> str | None:
@@ -160,12 +161,18 @@ class BistBacktester:
         enable_regime_filter: bool = True,
         use_trailing_stop: bool = True,
         use_viop: bool = False,
-        leverage: float = 1.5
+        leverage: float = 1.5,
+        entry_filters: tuple = (),
+        refresh_data: bool = True,
+        write_artifacts: bool = True
     ):
         """
         Geçmiş N aylık veri üzerinde Walk-Forward simülasyonu çalıştırır.
         use_viop=True: Çift yönlü (Long & Short) VİOP türev motorunu çalıştırır.
         use_trailing_stop=True: İz süren stop kullanır. False ise sabit Take-Profit hedefi devreye girer.
+        entry_filters: LONG girişe ek onay şartları ("ict", "money_flow", "index_gate"); katkı ölçümü için.
+        refresh_data=False: veriyi yeniden indirmez, diskteki dosyayı kullanır.
+        write_artifacts=False: grafik ve rapor dosyası üretmez.
         """
         if not ticker.endswith(".IS"):
             ticker += ".IS"
@@ -186,7 +193,8 @@ class BistBacktester:
         print("="*85 + "\n")
 
         # 1. Canlı veriyi güncelle ve oku
-        download_ticker_data(ticker, period="5y", interval="1d", save_dir=RAW_DATA_DIR)
+        if refresh_data:
+            download_ticker_data(ticker, period="5y", interval="1d", save_dir=RAW_DATA_DIR)
         csv_path = os.path.join(RAW_DATA_DIR, f"{ticker}_1d.csv")
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"{ticker} veri seti bulunamadı: {csv_path}")
@@ -219,6 +227,12 @@ class BistBacktester:
         margin_ratio = BistViopEngine.SPAN_MARGIN_RATIOS.get(clean_ticker, BistViopEngine.SPAN_MARGIN_RATIOS["DEFAULT"])
         rate = daily_rate(rf_annual)
 
+        filters = None
+        if entry_filters:
+            index_history = self._load_index_history(refresh_data) if FILTER_INDEX_GATE in entry_filters else None
+            filters = EntryFilters(entry_filters, index_history=index_history)
+        blocked_entries = {name: 0 for name in entry_filters}
+
         trades = []
         total_costs = 0.0
         current_capital = initial_capital
@@ -242,6 +256,13 @@ class BistBacktester:
             min_thresh = 0.8 if self.quant_engine is not None else 1.2
             should_enter_long = expected_return > min_thresh and (is_bull or not enable_regime_filter)
             should_enter_short = use_viop and (expected_return < -min_thresh or not is_bull)
+
+            # Ek giriş filtreleri yalnızca giriş gününden önceki mumları görür
+            if should_enter_long and filters is not None:
+                blocker = filters.blocking_filter(hist_df, str(entry_row["timestamps"].date()))
+                if blocker is not None:
+                    blocked_entries[blocker] += 1
+                    should_enter_long = False
 
             if should_enter_long or should_enter_short:
                 direction = LONG if should_enter_long else SHORT
@@ -326,7 +347,10 @@ class BistBacktester:
             **self._calculate_performance_metrics(trades, equity_curve, test_df, initial_capital, total_costs, costs, rf_annual),
             "leakage_status": leak_code,
             "leakage_note": leak_note,
+            "blocked_entries": blocked_entries,
         }
+        if not write_artifacts:
+            return metrics, None, None
 
         # 4. Grafiği Çiz ve Kaydet
         chart_path = self._plot_equity_curve(ticker, test_df, equity_curve, initial_capital)
@@ -335,6 +359,15 @@ class BistBacktester:
         report_path = self._generate_markdown_report(ticker, metrics, trades, chart_path, months, stop_loss_pct, take_profit_pct, use_trailing_stop, costs)
 
         return metrics, report_path, chart_path
+
+    def _load_index_history(self, refresh_data: bool) -> pd.DataFrame:
+        """Endeks kapısı filtresi için XU100 geçmişini okur."""
+        if refresh_data:
+            download_ticker_data(INDEX_TICKER, period="5y", interval="1d", save_dir=RAW_DATA_DIR)
+        csv_path = os.path.join(RAW_DATA_DIR, f"{INDEX_TICKER}_1d.csv")
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"{INDEX_TICKER} veri seti bulunamadı: {csv_path}")
+        return pd.read_csv(csv_path)
 
     def run_universe_backtest(self, tickers: list[str], **backtest_kwargs) -> tuple[list[dict], dict]:
         """
