@@ -1,259 +1,273 @@
-# 🏛️ KRONOS: BIST 100 & VİOP Hybrid AI Quant, Econometrics & Institutional Trading System
+# KRONOS: BIST 100 & VİOP Hibrit Yapay Zeka ve Kantitatif Araştırma Sistemi
 
 <div align="center">
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![PyTorch](https://img.shields.io/badge/PyTorch-102.3M_Params-ee4c2c.svg)
-![DuckDB](https://img.shields.io/badge/DuckDB-Microsecond_SQL-yellow.svg)
-![Econometrics](https://img.shields.io/badge/Econometrics-GARCH_Merton_Jump_Diffusion-orange.svg)
-![ICT](https://img.shields.io/badge/ICT_SMC-FVG_%2B_BSL%2FSSL_Sweeps-purple.svg)
-![Portfolio](https://img.shields.io/badge/Portfolio-Markowitz_HRP_Black--Litterman-blueviolet.svg)
-![Derivatives](https://img.shields.io/badge/Derivatives-VİOP_BSM_Greeks_Delta--Hedge-gold.svg)
-![Telegram](https://img.shields.io/badge/Telegram-Two--Way_Interactive_Bot-0088cc.svg)
-![LLM](https://img.shields.io/badge/LLM-Gemini_2.5_Flash_Rotator-00a498.svg)
-![Status](https://img.shields.io/badge/Status-Institutional_Grade-success.svg)
+![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
+![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
+![Tests](https://img.shields.io/badge/testler-133-brightgreen.svg)
+![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
 
-**KRONOS**, Borsa İstanbul (BIST 100 / BIST 30) hisse senetleri ve VİOP kaldıraçlı vadeli işlem piyasaları için geliştirilmiş; **Derin Öğrenme (Deep Learning) tabanlı foundation model fiyat tahmini**, **İleri Ekonometri & 5 Tanı Testi**, **GARCH(1,1) & Merton Poisson Jump Diffusion Stokastik Simülasyonu**, **ICT Smart Money (SMC) Likidite & FVG Motoru**, **BIST 100 Makro Endeks Kapısı (Gatekeeper)**, **DuckDB Mikro-Saniye SQL Zaman Serisi**, **Canlı KAP & BIST Bülten Kazıyıcı**, **TradeMemory Episodik İşlem Hafızası**, **Çift Yönlü İnteraktif Telegram Komuta Merkezi** ve **2 Turlu Çoklu-Ajan (Multi-Agent) Boğa vs. Ayı Diyalektik Münazarası (TradingAgents)** mimarisini tek bir çatı altında birleştiren yeni nesil kurumsal kantitatif yatırım yönetim platformudur.
+**KRONOS**, Borsa İstanbul (BIST 100 / BIST 30) hisseleri için bir araştırma ve deney ortamıdır. Kronos zaman serisi
+modeliyle fiyat tahmini, klasik ekonometri ve Monte Carlo simülasyonu, kural tabanlı fiyat hareketi (ICT) tespiti ve
+Gemini tabanlı çok ajanlı bir münazara komitesini tek bir komut satırı aracında birleştirir.
+
+> **Bu sistem kârlılığı kanıtlanmış bir strateji değildir.** Aşağıdaki "Ölçülen Sonuçlar" bölümü, sistemin kendi
+> araçlarıyla yapılan ölçümleri olduğu gibi verir: şu ana kadar test edilen hiçbir bileşen "al ve tut" ya da
+> "fiyat değişmeyecek" kıyaslamasını geçememiştir.
 
 ---
 
-## 🚀 Proje Vizyonu ve Felsefesi
+## Ölçülen Sonuçlar
 
-Klasik teknik indikatör botlarının (RSI, MACD vb.) piyasadaki kurumsal tuzaklara düşmesi veya basit kara kutu (black-box) yapay zekaların piyasa rejimini anlayamaması sorununa karşı KRONOS, **çok katmanlı bir savunma ve filtreleme kalkanı** ile çalışır:
+Ölçümler 7 Ekim 2026 tarihinde, depodaki araçlarla alınmıştır. Tek dönem ve tek piyasa rejimini yansıtır.
 
-1. **Önce Makro ve Likidite:** Endeks (XU100) trend altında ise tekil hissede long açılmaz (**Endeks Kapısı Veto Kalkanı**).
-2. **Akıllı Para Ayak İzi:** Eski tepeler/dipler süpürülmeden ve Fair Value Gap (FVG) oluşmadan işleme girilmez (**ICT Smart Money Engine**).
-3. **Kurumsal Balina Teyidi:** Bank of America, İş Yatırım ve Takasbank para akışı (CMF, MFI, VWAP) alım yönünde değilse işlem veto edilir (**AKD Balina Radarı**).
-4. **Matematiksel Risk Sınaması:** 1.000 yollu Merton Monte Carlo simülasyonunda kazanma olasılığı <%38 ise modelin pozitif yanlılığı doğrudan engellenir (**Deterministik Hard-Gate Veto**).
-5. **Diyalektik Münazara:** Boğa ve Ayı analistleri 2 tur boyunca verileri çarpıştırır; Baş Portföy Müdürü (Executive Manager) hakemliğinde **Açıklanabilir Yapay Zeka (XAI)** kararı üretilir.
+### Kural tabanlı strateji (Kronos'suz), BIST30, son 12 ay, maliyetler dahil
+
+`python main.py --backtest-universe bist30 --months 12`
+
+| Ölçü | Değer |
+| :--- | ---: |
+| Test edilen hisse | 33 |
+| Medyan strateji getirisi | −%6,01 |
+| Medyan al-tut getirisi | +%7,19 |
+| Medyan fark | −%15,56 |
+| Al-tut'u geçen hisse oranı | %33,3 |
+| Toplam işlem | 376 |
+
+### Kronos tahmin isabeti, BIST30, 396 tahmin noktası (3 Kasım 2025 – 15 Eylül 2026), 15 günlük ufuk
+
+`python main.py --compare-models bist30`
+
+| Model | Yön isabeti | Ort. mutlak hata | Naife göre beceri |
+| :--- | ---: | ---: | ---: |
+| Naif ("fiyat değişmeyecek") | — | %8,23 | 0 |
+| Yeni ince ayar (hisse bazlı pencereler) | %48,2 | %11,09 | −%34,8 |
+| Temel Kronos (ince ayarsız) | %50,8 | %14,94 | −%81,6 |
+| Eski ince ayar (hatalı veri hattı) | %48,7 | %17,41 | −%111,7 |
+
+Yeni ince ayar diğer iki modelden daha isabetlidir, ancak üç model de naif tahminin gerisindedir ve yön isabeti
+yazı-tura düzeyindedir. Bu nedenle Kronos çıktısı sistemde **DOĞRULANMADI** olarak etiketlenir; komite kararına
+gerekçe yapılmaz ve tarama sıralamasında kullanılmaz. Test dönemi model seçiminde kullanılan doğrulama dönemiyle
+örtüştüğü için sonuç ince ayarlı model lehine hafif iyimserdir.
 
 ---
 
-## 🧠 Bütünleşik Sistem Mimarisi
+## Sistem Akışı
 
 ```mermaid
 flowchart TD
-    subgraph Data_Layer ["📡 Veri Toplama & Hızlı Zaman Serisi Katmanı"]
-        YF["Canlı Piyasa (Yahoo Finance & Fast-Info)"]
-        KAP["KAP Kazıyıcı (kap.org.tr & BIST Bültenleri)"]
-        DDB["DuckDB In-Process SQL (111 Hisse <250ms)"]
-        YF --> DDB
+    subgraph Veri ["Veri"]
+        YF["Yahoo Finance (günlük OHLCV)"]
+        NEWS["KAP uç noktası + Google News RSS"]
     end
 
-    subgraph Quant_Layer ["📐 Kantitatif & Ekonometrik Çekirdek"]
-        KRONOS_AI["Kronos-Base Model (102.3M Parametre Transformer)"]
-        ECON["GARCH(1,1) + Merton Jump Diffusion (3.000 Yol MC)"]
-        ICT["ICT Price Action (BSL/SSL Sweeps, FVG 50% CE, PO3)"]
-        GATE["BIST 100 Endeks Kapısı (SMA50, EMA21, ADX)"]
-        AKD["Takasbank & AKD Balina Radarı (CMF, MFI, VWAP)"]
-        DDB --> KRONOS_AI
-        DDB --> ECON
-        DDB --> ICT
-        DDB --> GATE
-        DDB --> AKD
+    subgraph Hesap ["Deterministik hesaplar"]
+        KRONOS["Kronos tahmini (doğrulama etiketiyle)"]
+        ECON["Ekonometri + Merton/GARCH Monte Carlo"]
+        ICT["ICT fiyat hareketi kuralları"]
+        GATE["XU100 endeks rejimi"]
+        FLOW["Hacim tabanlı para akışı (CMF, MFI, VWAP)"]
     end
 
-    subgraph Optimization ["🛡️ Context Firewall & Token Tasarrufu"]
-        CFW["Context Firewall (%75-80 Token Sıkıştırma)"]
-        KRONOS_AI --> CFW
-        ECON --> CFW
-        ICT --> CFW
-        GATE --> CFW
-        AKD --> CFW
-        KAP --> CFW
+    subgraph Komite ["Gemini komitesi (7 çağrı)"]
+        ANALIST["Temel + Teknik analist"]
+        DEBATE["Boğa / Ayı: 2 tur münazara"]
+        PM["Portföy müdürü kararı"]
     end
 
-    subgraph Memory_Layer ["🧠 Hafıza & Sürekli Öğrenme"]
-        TM["TradeMemory Protokolü (Episodik Setup Parmak İzi & Post-Mortem)"]
-    end
-
-    subgraph Committee_Layer ["🏛️ TradingAgents Çoklu Yapay Zeka Komitesi (3'lü Gemini Rotator)"]
-        FA["Temel Analist"]
-        TA["Teknik & Makro Analist"]
-        BULL["Boğa Araştırmacısı (1. Tur Açılış)"]
-        BEAR["Ayı Araştırmacısı (1. Tur Kontra)"]
-        REB_BULL["Boğa Çapraz Savunma (2. Tur)"]
-        REB_BEAR["Ayı Nihai Meydan Okuma (2. Tur)"]
-        EXEC["Baş Portföy Müdürü (XAI Karar & Şartlı Tetikleyiciler)"]
-
-        CFW --> FA & TA
-        TM --> FA & TA
-        FA & TA --> BULL & BEAR
-        BULL --> REB_BEAR
-        BEAR --> REB_BULL
-        REB_BULL & REB_BEAR --> EXEC
-    end
-
-    subgraph Execution_Layer ["⚡ Türev & İnteraktif Komuta Katmanı"]
-        EXEC --> VETO{"Hard-Gate Veto Kalkanı"}
-        VETO -->|Veto Tetiklendi| WAIT["TUT / GÖZLEMLE"]
-        VETO -->|Onaylandı| VIOP["VİOP Bileşik Kasa (SPAN Teminat & Kelly)"]
-        VIOP --> TG["Çift Yönlü İnteraktif Telegram Botu (Inline Butonlar)"]
-        TG -->|Kullanıcı Onayı| LEDGER["Yerel Portföy Kasası (viop_portfolio_ledger.json)"]
-    end
+    YF --> KRONOS & ECON & ICT & GATE & FLOW
+    NEWS --> ANALIST
+    KRONOS & ECON & ICT & GATE & FLOW --> ANALIST --> DEBATE --> PM
+    PM --> VETO{"Deterministik veto"}
+    VETO -->|tetiklendi| TUT["Karar TUT olarak kaydedilir"]
+    VETO -->|geçti| RAPOR["Komite raporu (Markdown)"]
 ```
+
+Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 
 ---
 
-## 🏛️ Temel Mimari Çekirdekler
+## Bileşenler ve Gerçek Durumları
 
-### 🔹 1. Kronos-Base Foundation Quant Modeli
-* **102.3 Milyon parametreli** Transformer tabanlı finansal zaman serisi tahmin motoru.
-* Fiziksel mum tutarlılığı kalkanı ($High \ge \max(Open, Close)$ ve $Low \le \min(Open, Close)$) ve BIST ±%10 tavan/taban devre kesici sınırları denetimi.
-* 1 Haftalık ve 15-30 Günlük vadelerde çok yollu olasılıksal destek, direnç ve getiri tahmini.
+| Bileşen | Ne yapar | Durum |
+| :--- | :--- | :--- |
+| **Kronos tahmini** | Kronos-base (102,3M parametre) ile 5 ve 15 günlük mum tahmini; BIST verisiyle ince ayar yapılabilir | Çalışıyor; tahmin isabeti doğrulanmadı (yukarıdaki tablo) |
+| **Ekonometri** | ADF/KPSS, Jarque-Bera, Durbin-Watson, Breusch-Godfrey, ARCH-LM, XU100'e karşı CAPM alfa/beta, GARCH(1,1) ve Merton sıçramalı Monte Carlo | Çalışıyor; sıçrama parametreleri sabit varsayımdır |
+| **ICT fiyat hareketi** | Likidite süpürmesi (BSL/SSL), Fair Value Gap, kırılım-retest tespiti | Kural tabanlı; getiriye katkısı ölçülmedi |
+| **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor |
+| **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez** |
+| **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
+| **KAP bildirimleri** | `kap.org.tr` uç noktasını sorgular; duyarlılık motoru Google News RSS'e düşer | KAP uç noktası 7 Ekim 2026 denemesinde yanıt vermedi; bu durumda "VERİ YOK" bildirilir |
+| **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; kararların isabeti ölçülmedi |
+| **Deterministik veto** | Endeks rejimi alıma kapalıysa, ya da Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor |
+| **Karar hafızası** | Geçmiş komite kararlarını ve sonradan gerçekleşen getiriyi saklar, sonraki analize özet olarak verir | Çalışıyor |
+| **İşlem hafızası** | Kullanıcının kaydettiği işlemleri ve çıkarılan dersleri saklar | Boş başlar; kayıt yoksa "kayıt yok" |
+| **VİOP hesapları** | Taşıma maliyetiyle teorik vadeli fiyat, Black-Scholes-Merton primi ve Greeks, pozisyon büyüklüğü | Çalışıyor; teminat oranları kodda sabit yaklaşık değerlerdir, Takasbank'ın güncel oranlarıyla doğrulanmadı |
+| **Portföy optimizasyonu** | Markowitz, HRP, Black-Litterman, Kelly | Çalışıyor; beklenen getiri girdileri varsayımdır |
+| **Backtest** | Walk-forward; komisyon, kayma, boşluklu açılışta stop dolumu, günlük sermaye eğrisinden metrikler, veri sızıntısı denetimi | Çalışıyor; temettüler hesaba katılmaz |
+| **DuckDB** | CSV mumlarını yerel veritabanına aktarır, taramada hızlı ön eleme yapar | İsteğe bağlı |
+| **Telegram botu** | `--bot` komutu `private_interactive_telegram.py` dosyasını gerektirir | **Bu depoda yok** (özel dosya) |
 
-### 🔹 2. İleri Ekonometri, GARCH(1,1) & Merton Jump Diffusion
-* **Çift Doğrulamalı Durağanlık:** ADF ve KPSS birim kök / trend sınaması.
-* **GARCH(1,1) Dinamik Oynaklık:** Zamana bağlı volatilite kümelenmesini tahmin ederek Monte Carlo adımlarına aktarır.
-* **Merton Poisson Jump Diffusion:** BIST'in ani haber şoklarını $dN_t \sim \text{Poisson}(\lambda)$ sıçrama prosesi ile modelleyerek şişman kuyruk (fat-tail) riskini ve CVaR (%95 Parametrik VaR) seviyelerini hesaplar.
+`repos/` altında Kronos ve TradingAgents projelerinin kopyaları bulunur. Kronos'un model ve eğitim kodu kullanılır.
+Komite TradingAgents'tan esinlenmiştir ancak onun kodunu çağırmaz; kendi promptlarıyla çalışır.
 
-### 🔹 3. 5 Temel Ekonometrik Tanı Testi Bataryası
-1. **Normallik:** Jarque-Bera ve D'Agostino-Pearson çarpıklık/basıklık testi.
-2. **Otokorelasyon:** Durbin-Watson ve Breusch-Godfrey LM yüksek dereceli ardışık bağımlılık testi.
-3. **Değişen Varyans:** Breusch-Pagan, White Testi ve ARCH-LM dinamik oynaklık testi.
-4. **Model Spesifikasyonu:** Ramsey RESET ($F$-istatistiği) ile doğrusal olmayan form hatası tespiti.
-5. **Çoklu Doğrusal Bağlantı:** VIF ve Şartlı Sayı ($CI$) kontrolü.
+### Veri bütünlüğü kuralı
 
-### 🔹 4. ICT Smart Money (SMC) & Fiyat Hareketi (Price Action) Motoru
-* **Likidite Temizliği (BSL / SSL Sweeps):** Eski zirvelerin veya diplerin üzerindeki stop avlarını ve *Turtle Soup* dönüş formasyonlarını yakalar.
-* **Fair Value Gap (FVG) & %50 Consequent Encroachment (C.E.):** Sert yer değiştirmelerin (Displacement) bıraktığı dengesizlikleri tespit eder ve optimal limit alım seviyesini belirler.
-* **Hacimsiz Kırılım & Onay (Volume Dry-Up Retest):** Hacimsiz geri çekilmeleri panik satışı yerine akıllı para akümülasyonu olarak ayrıştırır.
-* **Power of 3 (PO3 / AMD):** Seans açılışındaki manipülasyon (Judas Swing) hareketlerini filtreler.
-
-### 🔹 5. BIST 100 Endeks Trend Kapısı (Index Gatekeeper)
-* BIST 100 (XU100) endeksini SMA50, EMA21, RSI14 ve ADX/DMI filtrelerinden geçirir.
-* Piyasa rejimini belirler: `BULL_REGIME` (1.0x tahsisat), `NEUTRAL_CHOP` (0.5x tahsisat) ve `BEAR_REGIME` (0.0x - Yeni Long Pozisyonlara Hard Block / Veto).
-
-### 🔹 6. DuckDB Mikro-Saniye Zaman Serisi & SQL Motoru
-* In-process analitik SQL veritabanı (`kronos_market.duckdb`).
-* 111 hissenin tüm geçmiş günlük mumlarını tek bir optimize tabloda depolar.
-* BIST 30 / BIST 100 evren tarama sürelerini 50 saniyeden **<250 milisaniyeye** düşürür.
-
-### 🔹 7. Canlı KAP (Kamuyu Aydınlatma Platformu) & NLP Duygu Kazıyıcı
-* `kap.org.tr` açık bildirim akışını canlı olarak takip eder.
-* Özel Durum Açıklamaları, Pay Geri Alımları, Yeni İş İlişkileri/İhaleler ve Finansal Raporları ayıklar; NLP skorlaması ile komiteye brifing verir.
-
-### 🔹 8. TradeMemory Protokolü & Episodik İşlem Hafızası
-* Geçmiş işlemlerin teknik kurulum parmak izini (`setup_type`, `market_regime`, `pnl`, `lessons_learned`) saklar.
-* Yeni hisse analiz edilirken geçmiş benzer işlemleri (Örn: *"BIMAS işleminde 406 TL'ye yaşanan geri çekilme hacimsiz (0.57x) idi; stop'a sadık kalınarak 415.75 TL'ye kârla toparlandı"*) Boğa/Ayı münazarasına doğrudan argüman olarak sunar.
-
-### 🔹 9. Çift Yönlü İnteraktif Telegram Komuta Merkezi
-* Yeni sinyalleri dinamik **Inline Keyboard Butonları** (`[✅ Deftere Kaydet]`, `[📊 Durum Sorgula]`, `[❌ Pas Geç]`) ile gönderir.
-* Uzun yoklama (Long-Polling) dinleyicisi ile mobilden `/status`, `/scan`, `/close <Hisse>` komutlarını yönetmenizi sağlar.
-
-### 🔹 10. Context Firewall & Token Sıkıştırma Kalkanı
-* Devasa mum tablolarını ve metin bloklarını yüksek sinyalli kompakt özet formatına sıkıştırır.
-* Gemini modellerine giden prompt girdi boyutunu **%75-80 oranında azaltarak** analiz süresini yarıya indirir ve 503/429 kota aşımı hatalarını engeller.
-
-### 🔹 11. Takasbank & AKD Para Giriş/Çıkış Radarı
-* Matriks / İdealData kurum dağılım verilerini okur.
-* Chaikin Money Flow (CMF 20G), Money Flow Index (MFI 14G) ve Bank of America / İş Yatırım ilk 5 kurum konsantrasyon dengesini hesaplar.
-
-### 🔹 12. VİOP BSM Greeks, Delta-Hedging & SPAN Bileşik Kasa
-* Midas ve Takasbank SPAN teminat oranları ile kuruşu kuruşuna kalibre edilmiştir.
-* Kasanın maksimum %35-%40'ını teminata bağlar; serbest kalan %60-%65 nakit Takasbank gecelik faizinde (%45) nemalanır.
+Veri alınamayan alanlar (aracı kurum dağılımı, KAP bildirimi, endeks betası, işlem hafızası, politika faizi) komiteye
+tahmini değerlerle değil açıkça **VERİ YOK** olarak iletilir. Promptlar, bu alanlar için sayı, kurum adı veya olay
+uydurulmamasını ve doğrulanmamış Kronos tahmininin gerekçe yapılmamasını şart koşar.
 
 ---
 
-## 💻 Kullanım Komutları (CLI Rehberi)
+## Kurulum
 
-### 1. 🔍 Tekil Hisse Tam Komite Analizi
 ```bash
-python main.py --analyze BIMAS.IS --days 15
+pip install -r requirements.txt
 ```
 
-### 2. 🗄️ DuckDB Mum Veritabanını Senkronize Et
-```bash
-python main.py --sync-db
-```
+Test edilen ortam: Python 3.12, Windows 10, NVIDIA GTX 1650 (4 GB), torch 2.6.0 (CUDA 12.4), pandas 2.3.3,
+numpy 2.5.3, yfinance 1.5.2. `requirements.txt` sürüm sabitlemez.
 
-### 3. 🤖 Çift Yönlü İnteraktif Telegram Botunu Başlat
-```bash
-python main.py --bot
-```
-
-### 4. 📊 Otomatik A+ VİOP ve ICT Taraması
-```bash
-python main.py --scan bist30 --top 5
-```
-
-### 5. 🔬 Ekonometrik Tanı & Merton Monte Carlo Raporu
-```bash
-python main.py --econometrics THYAO.IS --days 15
-```
-
-### 6. 💼 Çoklu Model Portföy Optimizasyonu (HRP, Black-Litterman, Kelly)
-```bash
-python main.py --portfolio-opt "THYAO.IS,ISCTR.IS,AKBNK.IS,ASELS.IS,BIMAS.IS"
-```
-
-### 7. 🐋 Takasbank & AKD Kurumsal Balina Para Akışı Taraması
-```bash
-python main.py --akd-scan bist30 --top 15
-```
-
-### 8. ⚡ Canlı VİOP Fırsatları & Walk-Forward Backtest
-```bash
-# Canlı VİOP sinyalleri
-python main.py --viop-signals --top 5
-
-# 12 Aylık VİOP Walk-Forward Backtest (1.5x Kaldıraç)
-python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest --viop
-```
-
----
-
-## ⚙️ Piyasa Varsayımları (.env)
-
-Faiz oranları koda gömülü değildir; `.env` dosyasından yüzde olarak okunur:
+Proje kökünde bir `.env` dosyası gerekir:
 
 ```bash
-KRONOS_RISK_FREE_RATE_PCT=45     # VİOP nemalandırma, BSM, Sharpe ve CAPM hesaplarındaki yıllık risksiz faiz (tanımsızsa %45 varsayılır)
+GOOGLE_API_KEY_1=...             # Gemini anahtarı (komite ve duyarlılık analizi için). _2, _3 ... eklenebilir
+KRONOS_RISK_FREE_RATE_PCT=45     # Yıllık risksiz faiz varsayımı: VİOP nemalandırma, BSM, Sharpe, CAPM (tanımsızsa %45)
 KRONOS_POLICY_RATE_PCT=          # TCMB politika faizi; tanımsızsa komiteye "VERİ YOK" olarak bildirilir
 ```
 
-Veri alınamayan alanlar (aracı kurum dağılımı, KAP bildirimi, endeks betası, işlem hafızası) komiteye
-tahmini değerlerle değil açıkça **VERİ YOK** olarak iletilir. Gerçek aracı kurum dağılımı için
-`bist_data/akd/<HİSSE>_akd.csv` (`Kurum,NetLot` sütunları) dosyası sağlanmalıdır.
+Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı model ağırlıkları depoda yoktur;
+`models/bist_kronos/` altında yalnızca model kayıtları (yapılandırma, epoch sayacı, eğitim kesim tarihi, doğrulama
+özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
----
-
-## 📁 Proje Dizin Yapısı
-
-```text
-KRONOS/
-├── bist_quant/                        # Kantitatif ve Ekonometrik Çekirdekler
-│   ├── bist_duckdb_engine.py          # DuckDB Mikro-Saniye SQL Zaman Serisi Motoru
-│   ├── bist_kap_scraper.py            # KAP Canlı Bildirim & NLP Kazıyıcı
-│   ├── bist_trade_memory.py           # TradeMemory Protokolü & İşlem Günlüğü
-│   ├── bist_price_action.py           # ICT Smart Money (BSL/SSL, FVG %50 CE, PO3)
-│   ├── bist_index_gatekeeper.py       # BIST 100 Endeks Trend Kapısı (Gatekeeper)
-│   ├── bist_econometrics.py           # GARCH, Merton Jump Diffusion, 5 Tanı Testi
-│   ├── bist_akd_flow.py               # Takasbank & AKD Kurumsal Balina Radarı
-│   ├── bist_viop.py                   # VİOP Fiyatlama, SPAN Teminat & BSM Greeks
-│   ├── bist_scanner.py                # Çok Aşamalı Otomatik Tarayıcı (Funnel 1 & 2)
-│   └── bist_kronos_quant.py           # 102.3M Foundation Model Çıkarım Motoru
-│
-├── hybrid_agents/                     # Çoklu Yapay Zeka Komite Ajanları
-│   ├── bist_committee.py              # 4 Aşamalı Hibrit Komite Orkestratörü
-│   ├── context_firewall.py            # Token Sıkıştırma & Firewall Kalkanı
-│   ├── gemini_rotator.py              # 3'lü API Anahtarı Akıllı Rotasyon Motoru
-│   └── prompts.py                     # Boğa, Ayı, Portföy Müdürü & Analist Promptları
-│
-├── models/                            # PyTorch Model Ağırlıkları
-│   └── bist_kronos/                   # Fine-tune edilmiş Kronos-Base Modeli
-│
-├── private_interactive_telegram.py    # Çift Yönlü Butonlu Telegram Komuta Merkezi
-├── private_viop_compounder.py         # Kasa Büyütme & SPAN Dinamik Tahsisat Motoru
-├── main.py                            # Ana Terminal ve CLI İletişim Arayüzü
-├── requirements.txt                   # Bağımlılıklar
-└── README.md                          # Proje Dokümantasyonu
+```bash
+python -m pytest tests          # 133 test
 ```
 
 ---
 
-## ⚠️ Yasal Uyarı (Disclaimer)
+## Kullanım
 
-Bu yazılım ve üretilen tüm analitik model çıktıları, algoritmik sinyaller ve komite tartışma tutanakları **tamamen akademik araştırma, finansal ekonometri modellemesi ve kantitatif yazılım geliştirme amacıyla** üretilmiştir. Sistem tarafından üretilen hiçbir çıktı **doğrudan yatırım tavsiyesi (YTD) niteliği taşımaz**. Finansal piyasalarda ve VİOP kaldıraçlı türev ürünlerinde işlem yapmak yüksek derecede anapara kaybı riski içerir.
+### Veri
+
+```bash
+python main.py --download-all            # BIST100 listesinin tüm geçmişini indirir, eğitim veri kümesini üretir
+python main.py --sync-db                 # CSV mumlarını DuckDB'ye aktarır (isteğe bağlı)
+```
+
+İndirmeler `bist_data/raw/` altındaki dosyalarla birleştirilir; kısa periyotlu bir indirme uzun geçmişi silmez.
+
+### Analiz
+
+```bash
+python main.py --analyze BIMAS.IS --days 15       # Tam komite raporu (Gemini anahtarı gerekir)
+python main.py --scan bist30 --top 5              # Ön eleme + ilk N hisse için komite
+python main.py --econometrics THYAO.IS            # Ekonometrik tanı ve Monte Carlo
+python main.py --microstructure ISCTR.IS          # Makas, Amihud, VPIN, hacim profili
+python main.py --akd ISCTR.IS                     # Para akışı göstergeleri (varsa aracı kurum dağılımı)
+python main.py --sentiment ASELS.IS               # Haber duyarlılığı
+python main.py --pairs-trade ISCTR.IS,AKBNK.IS    # Eşbütünleşme
+python main.py --greeks THYAO.IS                  # BSM primi ve Greeks
+python main.py --portfolio-opt "THYAO.IS,ISCTR.IS,AKBNK.IS,ASELS.IS,BIMAS.IS"
+python main.py --memory ISCTR.IS                  # Geçmiş komite kararları ve gerçekleşen getiri
+```
+
+### Backtest
+
+```bash
+python main.py --backtest FROTO.IS --months 12                      # Tek hisse, kural tabanlı tahminci
+python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest # Aynı kurallar, Kronos tahminiyle
+python main.py --backtest FROTO.IS --viop --leverage 1.5            # Çift yönlü, kaldıraçlı
+python main.py --backtest-universe bist30 --months 12               # Tüm evren: medyan fark, al-tut'u geçen oran
+```
+
+Seçenekler: `--commission-bps` ve `--slippage-bps` (varsayılan spot 10 + 5, VİOP 4 + 5 baz puan), `--sl`,
+`--fixed-tp` ile birlikte `--tp`. Tek hisse ve tek dönem sonucu kanıt değildir; kuralları değerlendirmek için evren
+koşusunu kullanın.
+
+### Kronos ince ayarı ve doğrulama
+
+```bash
+python main.py --train-predictor --pred-epochs 3 --fresh-train --train-steps 5000 --val-steps 500
+python main.py --compare-models bist30
+```
+
+- Eğitim pencereleri hisse bazında kurulur: her pencere tek bir hissenin ardışık günlerinden oluşur. Eğitim ve
+  doğrulama tüm hisseler için ortak bir tarihten ayrılır.
+- `--fresh-train` mevcut modeli silmeden arşivler ve önceden eğitilmiş Kronos ağırlıklarından başlar. Bayrak
+  verilmezse eğitim kayıtlı modelin üzerine devam eder; `--pred-epochs` toplam epoch sayısıdır.
+- `--train-steps` olmadan bir epoch yaklaşık 219.000 adımdır (GTX 1650'de yaklaşık 61 saat). Yukarıdaki komut
+  aynı donanımda 4,7 saat sürmüştür.
+- Eğitim bitince eğitim kesim tarihi kaydedilir; backtest, test döneminin bu tarihten sonra başlayıp başlamadığını
+  denetler ve sonucu raporda belirtir.
+- `--compare-models` modelleri aynı hisse ve tarihlerde ölçer ve doğrulama özetini günceller. Bir model naif
+  tahmini geçer ve yön isabeti %50'yi aşarsa etiketi kendiliğinden "DOĞRULANDI" olur. Model yeniden eğitilirse
+  eski ölçüm geçersiz sayılır.
+
+---
+
+## Bilinen Sınırlar
+
+- **Kanıtlanmış bir avantaj yok.** Ne kural tabanlı strateji ne de Kronos tahmini kıyaslamayı geçti.
+- **Komite kararları ölçülmedi.** Gemini komitesinin kararlarının isabetine dair sistematik bir test yoktur.
+- **Bileşen katkısı ölçülmedi.** ICT kuralları, para akışı skoru ve endeks kapısının sonuca tek tek etkisi bilinmiyor.
+- **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
+  bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
+- **Hisse listesi güncel değil.** BIST100 listesindeki 112 sembolden 4'ü (IPEKE, KNYAS, KOZAL, KOZAA) indirilemiyor.
+- **Sabit varsayımlar.** VİOP teminat oranları, Monte Carlo sıçrama parametreleri ve Black-Litterman beklenen getirisi
+  kodda sabittir.
+- **Bağımlılık sürümleri sabitlenmemiştir.**
+
+---
+
+## Proje Dizin Yapısı
+
+```text
+KRONOS/
+├── main.py                            # Komut satırı arayüzü
+├── bist_quant/
+│   ├── bist_downloader.py             # Yahoo Finance indirme, geçmişle birleştirme
+│   ├── bist_preprocess.py             # Hisse etiketli eğitim veri kümesi
+│   ├── bist_kline_dataset.py          # Hisse bazlı pencereleyen eğitim veri kümesi
+│   ├── bist_finetune_runner.py        # Kronos eğitimini bu veri kümesiyle başlatır
+│   ├── bist_trainer.py                # Eğitim yöneticisi (arşivleme, adım sınırı, kesim tarihi)
+│   ├── bist_kronos_quant.py           # Kronos tahmini ve raporu
+│   ├── bist_model_eval.py             # Modellerin yan yana isabet ölçümü
+│   ├── kronos_validation.py           # Doğrulama durumu ve etiketi
+│   ├── backtest_engine.py             # Çıkış simülasyonu, maliyet modeli, metrikler
+│   ├── bist_backtester.py             # Walk-forward ve evren backtesti
+│   ├── bist_econometrics.py           # Tanı testleri, CAPM, GARCH, Merton Monte Carlo
+│   ├── bist_price_action.py           # ICT kuralları
+│   ├── bist_index_gatekeeper.py       # XU100 rejimi
+│   ├── bist_akd_flow.py               # Para akışı göstergeleri, isteğe bağlı aracı kurum dağılımı
+│   ├── bist_kap_scraper.py            # KAP bildirim sorgusu
+│   ├── bist_sentiment.py              # Haber duyarlılığı
+│   ├── bist_microstructure.py         # Makas, Amihud, VPIN, hacim profili
+│   ├── bist_viop.py                   # Vadeli fiyat, BSM, Greeks
+│   ├── bist_portfolio_opt.py          # Markowitz, HRP, Black-Litterman, Kelly
+│   ├── bist_memory.py                 # Komite karar hafızası
+│   ├── bist_trade_memory.py           # İşlem hafızası
+│   ├── bist_scanner.py                # Evren taraması
+│   ├── bist_duckdb_engine.py          # DuckDB aktarımı ve ön eleme
+│   └── market_assumptions.py          # Faiz varsayımları (.env)
+├── hybrid_agents/
+│   ├── bist_committee.py              # Komite orkestrasyonu ve veto
+│   ├── verdict_parser.py              # Karar satırının ayrıştırılması
+│   ├── prompts.py                     # Ajan promptları
+│   ├── context_firewall.py            # Mum geçmişinin özetlenmesi
+│   └── gemini_rotator.py              # Gemini istemcisi ve anahtar rotasyonu
+├── tests/                             # pytest testleri
+├── models/bist_kronos/                # Model kayıtları (ağırlıklar depoda yok)
+└── repos/                             # Kronos ve TradingAgents kaynak kopyaları
+```
+
+---
+
+## Yasal Uyarı
+
+Bu yazılım ve ürettiği tüm çıktılar (tahminler, sinyaller, komite raporları) **araştırma ve yazılım geliştirme
+amacıyla** üretilmiştir. Hiçbir çıktı **yatırım tavsiyesi değildir**. Yukarıdaki ölçümler sistemin kıyaslamaları
+geçemediğini göstermektedir. Finansal piyasalarda ve kaldıraçlı türev ürünlerde işlem yapmak anapara kaybı riski taşır.

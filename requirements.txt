@@ -8,3 +8,12 @@ python-dotenv
 holidays
 scipy
 statsmodels
+scikit-learn
+duckdb
+requests
+tqdm
+pyyaml
+einops
+huggingface_hub
+safetensors
+pytest
