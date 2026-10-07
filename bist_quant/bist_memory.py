@@ -29,6 +29,10 @@ MEMORY_FILE = os.path.join(MEMORY_DIR, "committee_episodic_memory.json")
 
 import tempfile
 
+def _round_or_none(value, digits: int = 2):
+    """Komite raporundan okunamayan alanlar None kalır; yerine varsayılan sayı yazılmaz."""
+    return None if value is None else round(value, digits)
+
 class BistCommitteeMemory:
     """
     BIST Yapay Zeka Komitesi için Zaman ve Vade Duyarlı Kalıcı Hafıza Yöneticisi.
@@ -111,9 +115,9 @@ class BistCommitteeMemory:
                         item["spot_price"] = round(spot_price, 2)
                         item["verdict"] = verdict.strip().upper()
                         item["confidence"] = confidence
-                        item["target_1w"] = round(target_1w, 2)
-                        item["target_15d"] = round(target_15d, 2)
-                        item["stop_loss"] = round(stop_loss, 2)
+                        item["target_1w"] = _round_or_none(target_1w)
+                        item["target_15d"] = _round_or_none(target_15d)
+                        item["stop_loss"] = _round_or_none(stop_loss)
                         item["bull_thesis_summary"] = bull_thesis_summary[:300]
                         item["bear_thesis_summary"] = bear_thesis_summary[:300]
                         item["cmf_score"] = round(cmf_score, 3)
@@ -132,9 +136,9 @@ class BistCommitteeMemory:
             "spot_price": round(spot_price, 2),
             "verdict": verdict.strip().upper(),
             "confidence": confidence,
-            "target_1w": round(target_1w, 2),
-            "target_15d": round(target_15d, 2),
-            "stop_loss": round(stop_loss, 2),
+            "target_1w": _round_or_none(target_1w),
+            "target_15d": _round_or_none(target_15d),
+            "stop_loss": _round_or_none(stop_loss),
             "bull_thesis_summary": bull_thesis_summary[:300],
             "bear_thesis_summary": bear_thesis_summary[:300],
             "cmf_score": round(cmf_score, 3),
@@ -209,7 +213,7 @@ class BistCommitteeMemory:
                         is_success = True
                         bull_validated = True
                         evaluation_note = f"🟢 BAŞARILI: {date_str[:10]} tarihindeki AL tavsiyesi %+ {actual_return_pct:.2f} getiri sağladı. Boğa tezi doğrulandı."
-                    elif current_price <= stop_l:
+                    elif stop_l is not None and current_price <= stop_l:
                         is_success = False
                         bear_validated = True
                         evaluation_note = f"🔴 BAŞARISIZ (Stop-Loss İhlali): Fiyat {current_price:.2f} TL'ye inerek stop seviyesini ({stop_l:.2f}) kırdı. Ayı uyarısı haklı çıktı."

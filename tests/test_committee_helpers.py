@@ -1,8 +1,34 @@
 import math
 
 from bist_quant.market_assumptions import POLICY_RATE_ENV
-from hybrid_agents.bist_committee import describe_current_setup, pick_live_price, policy_rate_line, risk_veto_reason
+from hybrid_agents.bist_committee import band_upper, describe_current_setup, pick_live_price, policy_rate_line, risk_veto_reason
 from hybrid_agents.verdict_parser import VERDICT_BUY, VERDICT_HOLD, VERDICT_SELL, VERDICT_UNKNOWN
+
+
+def test_memory_stores_unread_fields_as_missing_and_still_evaluates(tmp_path):
+    from bist_quant.bist_memory import BistCommitteeMemory
+
+    memory = BistCommitteeMemory(memory_filepath=str(tmp_path / "memory.json"))
+    entry = memory.record_decision(ticker="TEST.IS", spot_price=100.0, verdict="AL", confidence=None,
+                                   target_1w=None, target_15d=None, stop_loss=None, forecast_date="2026-01-05 10:00:00")
+
+    evaluations = memory.evaluate_past_decisions("TEST.IS", current_price=95.0)
+
+    assert (entry["confidence"], entry["target_1w"], entry["target_15d"], entry["stop_loss"]) == (None, None, None, None)
+    assert evaluations[0]["is_mature"] is True
+    assert evaluations[0]["is_success"] is False
+
+
+def test_band_upper_returns_the_high_end_or_nothing():
+    assert band_upper((268.42, 283.99)) == 283.99
+    assert band_upper(None) is None
+
+
+def test_fundamental_prompt_states_the_real_news_window():
+    from hybrid_agents import prompts
+
+    assert "24/48" not in prompts.BIST_FUNDAMENTAL_ANALYST_PROMPT
+    assert "{news_window_days}" in prompts.BIST_FUNDAMENTAL_ANALYST_PROMPT
 
 
 WEAK_ODDS = {"prob_positive": 30.0}

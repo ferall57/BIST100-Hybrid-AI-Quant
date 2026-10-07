@@ -10,6 +10,7 @@ from bist_quant.kronos_validation import (
     MODEL_BASE,
     MODEL_FINETUNED,
     format_banner,
+    report_for_committee,
     validation_status,
     write_validation,
 )
@@ -93,6 +94,25 @@ def test_banner_states_the_label_and_the_evidence(tmp_path):
 
     assert LABEL_UNVALIDATED in banner
     assert "-34.8" in banner
+
+
+FULL_REPORT = "# Kronos raporu\n| 1 Haftalık | **283.99 TRY** | %-0.79 |\nDestek: 283.99 TRY, hedef 279.86 TRY"
+
+
+def test_unvalidated_forecast_numbers_are_withheld_from_the_committee(tmp_path):
+    status = validation_status(MODEL_FINETUNED, path=_write(tmp_path, skill=-34.8, direction=48.2))
+
+    text = report_for_committee(FULL_REPORT, status)
+
+    assert LABEL_UNVALIDATED in text
+    assert "283.99" not in text and "279.86" not in text
+    assert "verilmemiştir" in text
+
+
+def test_validated_forecast_is_passed_to_the_committee_in_full(tmp_path):
+    status = validation_status(MODEL_FINETUNED, path=_write(tmp_path, skill=6.0, direction=56.0))
+
+    assert report_for_committee(FULL_REPORT, status) == FULL_REPORT
 
 
 def test_scanner_ranks_with_kronos_only_when_it_is_validated():

@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-157-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-171-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -168,7 +168,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 157 test
+python -m pytest tests          # 171 test
 ```
 
 ---

@@ -1,4 +1,8 @@
+from datetime import datetime, timezone
+
+from bist_quant.bist_kap_crawler import filter_recent_news
 from bist_quant.bist_kap_scraper import NO_DATA, BistKapScraper
+from bist_quant.bist_sentiment import format_news_line
 
 
 class _Response:
@@ -59,6 +63,36 @@ def test_reachable_source_with_no_items_is_not_reported_as_good_news():
     assert NO_DATA not in report
     assert "bildirim listelenmedi" in report
     assert "POZİTİF" not in report
+
+
+NOW = datetime(2026, 10, 7, 12, 0, tzinfo=timezone.utc)
+
+
+def test_stale_news_is_dropped_and_recent_news_comes_newest_first():
+    items = [
+        {"title": "Temmuz haberi", "published": "Thu, 23 Jul 2026 08:00:00 GMT"},
+        {"title": "Geçen hafta", "published": "Thu, 01 Oct 2026 08:00:00 GMT"},
+        {"title": "Dün", "published": "Tue, 06 Oct 2026 08:00:00 GMT"},
+    ]
+
+    recent = filter_recent_news(items, now=NOW, max_age_days=14)
+
+    assert [item["title"] for item in recent] == ["Dün", "Geçen hafta"]
+    assert [item["age_days"] for item in recent] == [1, 6]
+
+
+def test_news_with_unreadable_date_is_kept_last_with_unknown_age():
+    items = [{"title": "Tarihsiz", "published": "bilinmiyor"}, {"title": "Dün", "published": "2026-10-06T08:00:00+00:00"}]
+
+    recent = filter_recent_news(items, now=NOW, max_age_days=14)
+
+    assert [item["title"] for item in recent] == ["Dün", "Tarihsiz"]
+    assert recent[1]["age_days"] is None
+
+
+def test_news_line_shows_age_before_the_headline():
+    assert format_news_line({"title": "Başlık", "source": "Kaynak", "age_days": 3}) == "- [3 gün önce] (Kaynak) Başlık"
+    assert "yaşı bilinmiyor" in format_news_line({"title": "Başlık", "source": "Kaynak", "age_days": None})
 
 
 def test_real_disclosures_are_listed():

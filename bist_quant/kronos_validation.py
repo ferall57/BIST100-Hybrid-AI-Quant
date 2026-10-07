@@ -94,6 +94,17 @@ def validation_status(model_name: str, path: str = VALIDATION_FILE, current_fing
     return unvalidated(f"\"fiyat değişmeyecek\" diyen naif tahmini geçemedi ({evidence})")
 
 
+def report_for_committee(full_report: str, status: ValidationStatus) -> str:
+    """
+    Komite ajanlarına verilecek Kronos metni. Model doğrulanmadıysa tahmin sayıları hiç verilmez:
+    bağlamda duran sayı, "kullanma" kuralına rağmen stop ve hedef seviyesi olarak kullanılıyor.
+    """
+    if status.is_validated:
+        return full_report
+    return (format_banner(status) + "\n\nModel doğrulanmadığı için tahmin sayıları (hedef, destek, direnç, beklenen getiri) "
+            "komiteye verilmemiştir. Kronos'a dayalı seviye veya yön belirtmeyiniz.")
+
+
 def format_banner(status: ValidationStatus) -> str:
     """Tahmin raporunun başına konan doğrulama satırı."""
     if status.is_validated:

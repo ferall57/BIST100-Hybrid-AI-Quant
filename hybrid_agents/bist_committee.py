@@ -7,7 +7,9 @@ import yfinance as yf
 from datetime import datetime
 
 from hybrid_agents.gemini_rotator import GeminiRotator
-from hybrid_agents.verdict_parser import VERDICT_BUY, VERDICT_HOLD, VERDICT_UNKNOWN, parse_verdict_type
+from hybrid_agents.verdict_parser import VERDICT_BUY, VERDICT_HOLD, VERDICT_UNKNOWN, parse_decision_fields, parse_verdict_type
+from bist_quant.kronos_validation import report_for_committee
+from bist_quant.bist_kap_crawler import NEWS_MAX_AGE_DAYS
 from hybrid_agents.prompts import (
     BIST_FUNDAMENTAL_ANALYST_PROMPT,
     BIST_TECHNICAL_MACRO_PROMPT,
@@ -72,6 +74,10 @@ def load_market_history(period: str = COMMITTEE_HISTORY_PERIOD) -> pd.DataFrame 
 
 def _is_valid_price(value) -> bool:
     return value is not None and not np.isnan(value) and value > 0
+
+def band_upper(band: tuple[float, float] | None) -> float | None:
+    """Hedef bandının üst ucu (hafızadaki tek değerli hedef alanı için); bant yoksa None."""
+    return band[1] if band else None
 
 MC_VETO_MAX_WIN_PROBABILITY_PCT = 38.0
 CMF_VETO_MAX = -0.12
@@ -309,6 +315,9 @@ class BistHybridCommittee:
         
         if self.quant_engine:
             kronos_report, chart_path = self.quant_engine.generate_quant_report(ticker, pred_len=forecast_days)
+        # Doğrulanmamış modelin sayıları ajanlara verilmez (kural yazmak yetmedi: sayılar stop ve hedef olarak kullanıldı).
+        # Tam rapor yalnızca insan okuyucu için dosyanın ekinde kalır.
+        kronos_for_committee = report_for_committee(kronos_report, self.quant_engine.validation) if self.quant_engine else kronos_report
 
         def extract_text(res):
             if hasattr(res, "content"):
@@ -345,6 +354,7 @@ class BistHybridCommittee:
             macro_indicators=macro_indicators,
             live_news=live_news,
             current_date=current_date_str,
+            news_window_days=NEWS_MAX_AGE_DAYS,
             self_reflection_context=self_reflection_context
         )
         res_fund = self.llm.invoke(prompt_fund)
@@ -358,7 +368,7 @@ class BistHybridCommittee:
             price_action_report=price_action_report,
             akd_report=akd_report,
             econometric_report=econometric_report,
-            kronos_report=kronos_report,
+            kronos_report=kronos_for_committee,
             self_reflection_context=self_reflection_context
         )
         res_tech = self.llm.invoke(prompt_tech)
@@ -452,40 +462,13 @@ class BistHybridCommittee:
         greeks = self.viop_engine.calculate_bsm_option_greeks(spot=current_price, strike=strike_atm, days_to_expiry=30, volatility=0.32)
         
         # 6. Kararı Hafıza Veritabanına Kaydet (Gelecek Öz-Yansıtma İçin)
-        def _extract_price(pattern, text, default_val):
-            m = re.search(pattern, text, re.IGNORECASE)
-            if m:
-                try:
-                    num_str = m.group(1).replace(".", "").replace(",", ".")
-                    return float(num_str)
-                except Exception:
-                    pass
-            return default_val
+        # Rapordan okunamayan alan None kalır; hafızaya varsayılan/uydurma sayı yazılmaz.
+        decision = parse_decision_fields(executive_verdict, current_price)
 
-        t1w_match = re.search(r"1\s*Haftal[ıi]k.*?:\s*\[?([0-9\.,]+)\s*-\s*([0-9\.,]+)", executive_verdict)
-        t15d_match = re.search(r"(?:15-30\s*G[üu]nl[üu]k|Orta\s+Vade).*?:\s*\[?([0-9\.,]+)\s*-\s*([0-9\.,]+)", executive_verdict)
-        stop_match = re.search(r"(?:Stop-Loss|Zarar\s+Kes).*?:\s*\[?([0-9\.,]+)", executive_verdict)
-        conf_match = re.search(r"G[üu]ven.*?:\s*%?\s*([0-9]+)", executive_verdict)
         
-        try:
-            t1w_val = float(t1w_match.group(2).replace(".", "").replace(",", ".")) if t1w_match else current_price * 1.03
-        except Exception:
-            t1w_val = current_price * 1.03
 
-        try:
-            t15d_val = float(t15d_match.group(2).replace(".", "").replace(",", ".")) if t15d_match else current_price * 1.08
-        except Exception:
-            t15d_val = current_price * 1.08
 
-        try:
-            stop_val = float(stop_match.group(1).replace(".", "").replace(",", ".")) if stop_match else current_price * 0.96
-        except Exception:
-            stop_val = current_price * 0.96
 
-        try:
-            conf_val = int(conf_match.group(1)) if conf_match else 75
-        except Exception:
-            conf_val = 75
 
         verdict_type = VERDICT_HOLD if veto_triggered or parsed_verdict == VERDICT_UNKNOWN else parsed_verdict
 
@@ -493,10 +476,10 @@ class BistHybridCommittee:
             ticker=ticker,
             spot_price=current_price,
             verdict=verdict_type,
-            confidence=conf_val,
-            target_1w=t1w_val,
-            target_15d=t15d_val,
-            stop_loss=stop_val,
+            confidence=decision["confidence"],
+            target_1w=band_upper(decision["target_1w"]),
+            target_15d=band_upper(decision["target_mid"]),
+            stop_loss=decision["stop_loss"],
             bull_thesis_summary=bull_rebuttal[:250],
             bear_thesis_summary=bear_rebuttal[:250],
             cmf_score=akd_data.get("cmf_20", 0.0),

@@ -30,6 +30,16 @@ except Exception:
     GEMINI_AVAILABLE = False
 
 
+from bist_quant.bist_kap_crawler import NEWS_MAX_AGE_DAYS
+
+
+def format_news_line(item: dict) -> str:
+    """Modele verilen haber satırı: haberin yaşı başta durur ki eski haber güncel sanılmasın."""
+    age_days = item.get("age_days")
+    age_text = "yaşı bilinmiyor" if age_days is None else ("bugün" if age_days == 0 else f"{age_days} gün önce")
+    return f"- [{age_text}] ({item.get('source', '')}) {item.get('title', '')}"
+
+
 class BistSentimentEngine:
     """
     Borsa İstanbul hisseleri için Canlı KAP ve Finansal Haber NLP Duyarlılık Motoru.
@@ -74,6 +84,7 @@ class BistSentimentEngine:
             news_items.append({
                 "title": item["title"],
                 "pub_date": item.get("published", ""),
+                "age_days": item.get("age_days"),
                 "link": "",
                 "source": item.get("source", "KAP & Finans")
             })
@@ -104,13 +115,18 @@ class BistSentimentEngine:
         # 1. Öncelik: Gemini LLM Tabanlı Derin Finansal NLP Analizi
         if self.llm is not None:
             try:
-                news_text = "\n".join([f"- [{item.get('pub_date', '')}] ({item.get('source', '')}) {item.get('title', '')}" for item in news_items[:15]])
+                news_text = "\n".join(format_news_line(item) for item in news_items[:15])
                 
                 prompt = f"""Sen kurumsal bir Kuant Fonunda görev yapan Baş Finansal NLP ve KAP Duyarlılık Analistisin.
 Görevin, aşağıdaki Borsa İstanbul ({clean_ticker}) hissesine ait en güncel KAP bildirimleri ve haber başlıklarını analiz edip kesinlikle geçerli bir JSON nesnesi döndürmektir.
 
-Haber Başlıkları:
+Haber Başlıkları (yalnızca başlık; son {NEWS_MAX_AGE_DAYS} gün, en yeni önce):
 {news_text}
+
+DEĞERLENDİRME KURALLARI:
+- Yalnızca başlık görüyorsun; başlıkta yazmayan ayrıntıyı (tutar, sebep, sonuç) uydurma.
+- Bildirimi yayımlayan kurum şirketin kendisi değilse (örn. Takasbank, MKK, Borsa İstanbul), bunu şirketin kendi finansal durumu hakkında kanıt sayma. Anlamı başlıktan kesin değilse özetinde "içeriği doğrulanmadı" de ve katalizör olarak işaretleme.
+- Aynı konuda birbirini izleyen haberlerde en yeni tarihli olanı esas al; eski haberi güncel olay gibi sunma.
 
 JSON Çıktı Formatı (Yalnızca bu JSON'ı döndür, markdown bloğu veya başka metin ekleme):
 {{

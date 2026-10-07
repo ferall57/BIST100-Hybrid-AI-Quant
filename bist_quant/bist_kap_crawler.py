@@ -11,8 +11,43 @@ import sys
 import json
 import time
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import List, Dict, Any
+
+NEWS_MAX_AGE_DAYS = 14
+SECONDS_PER_DAY = 86400.0
+
+
+def published_at(item: dict) -> datetime | None:
+    """Haberin yayım zamanını (UTC) döndürür; biçim tanınmıyorsa None."""
+    raw = str(item.get("published", "")).strip()
+    if not raw:
+        return None
+    for parse in (parsedate_to_datetime, datetime.fromisoformat):
+        try:
+            moment = parse(raw)
+        except (TypeError, ValueError):
+            continue
+        return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
+    return None
+
+
+def filter_recent_news(items: List[Dict[str, Any]], now: datetime, max_age_days: int = NEWS_MAX_AGE_DAYS) -> List[Dict[str, Any]]:
+    """
+    Yalnızca son max_age_days gün içindeki haberleri, en yeniden eskiye sıralı ve 'age_days' alanıyla döndürür.
+    Tarihi okunamayan haberler yaşı bilinmediği için sona, 'age_days': None ile eklenir.
+    """
+    dated, undated = [], []
+    for item in items:
+        moment = published_at(item)
+        if moment is None:
+            undated.append({**item, "age_days": None})
+            continue
+        age_days = (now - moment).total_seconds() / SECONDS_PER_DAY
+        if age_days <= max_age_days:
+            dated.append({**item, "age_days": max(0, int(age_days))})
+    return sorted(dated, key=lambda item: item["age_days"]) + undated
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
@@ -72,6 +107,9 @@ class BistKapCrawler:
         if not disclosures:
             disclosures = self._fetch_google_news_kap_fallback(clean_ticker, max_items=max_items)
 
+        # Bayat haber güncel olay gibi sunulmasın: yalnızca son NEWS_MAX_AGE_DAYS gün, en yeni önce
+        disclosures = filter_recent_news(disclosures, datetime.now(timezone.utc))[:max_items]
+
         return disclosures
 
     def _fetch_google_news_kap_fallback(self, clean_ticker: str, max_items: int = 15) -> List[Dict[str, Any]]:
@@ -88,7 +126,7 @@ class BistKapCrawler:
             resp = requests.get(rss_url, headers=self.headers, timeout=self.timeout)
             if resp.status_code == 200:
                 root = ET.fromstring(resp.content)
-                for item in root.findall(".//item")[:max_items]:
+                for item in root.findall(".//item"):
                     title_elem = item.find("title")
                     pub_date_elem = item.find("pubDate")
                     desc_elem = item.find("description")

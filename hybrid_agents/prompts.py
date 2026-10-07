@@ -24,7 +24,7 @@ Bugünün Tarihi: {current_date}
 [TÜRKİYE VE BIST MAKROEKONOMİK GÖSTERGELERİ]
 {macro_indicators}
 
-[CANLI İNTERNET HABERLERİ / KAP BİLDİRİMLERİ (SON 24/48 SAAT)]
+[HABER VE KAP ÖZETİ (SON {news_window_days} GÜN; YALNIZCA HABER BAŞLIKLARINDAN ÜRETİLMİŞTİR, BİLDİRİM METİNLERİ OKUNMAMIŞTIR)]
 {live_news}
 
 Aşağıdaki veriler, yukarıdaki sayısal bilanço rasyoları (F/K, PD/DD, FD/FAVÖK, ROE vb.), geçmiş hafıza dersleri ve CANLI HABER AKIŞINI sentezleyerek kapsamlı ve gerçekçi bir TEMEL ANALİZ (Fundamental Evaluation) çıkar:
