@@ -1,6 +1,8 @@
 import os
 import sys
+import json
 import yaml
+import pandas as pd
 import subprocess
 import argparse
 
@@ -11,6 +13,26 @@ FINETUNE_CSV_DIR = os.path.join(KRONOS_DIR, "finetune_csv")
 PROCESSED_DATA_PATH = os.path.join(ROOT_DIR, "bist_data", "processed", "bist100_unified_kline.csv")
 MODELS_DIR = os.path.join(ROOT_DIR, "models", "bist_kronos")
 CONFIG_PATH = os.path.join(ROOT_DIR, "bist_quant", "bist_train_config.yaml")
+TRAINING_CUTOFF_PATH = os.path.join(MODELS_DIR, "training_cutoff.json")
+TRAIN_RATIO = 0.9
+
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from bist_quant.backtest_engine import compute_training_cutoff
+
+def write_training_cutoff(processed_csv: str = PROCESSED_DATA_PATH, train_ratio: float = TRAIN_RATIO, out_path: str = TRAINING_CUTOFF_PATH) -> str:
+    """
+    Modelin eğitimde gördüğü son tarihi kaydeder. Backtest motoru bu dosyayı okuyarak
+    test döneminin eğitim verisiyle çakışıp çakışmadığını (veri sızıntısı) denetler.
+    """
+    timestamps = pd.read_csv(processed_csv, usecols=["timestamps"])["timestamps"]
+    cutoff = compute_training_cutoff(timestamps, train_ratio)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump({"train_end_date": cutoff, "train_ratio": train_ratio, "source": os.path.basename(processed_csv)}, f, indent=2)
+    print(f"🗓️ Eğitim kesim tarihi kaydedildi: {cutoff} -> {out_path}")
+    return cutoff
 
 def generate_bist_config(epochs_tokenizer=30, epochs_predictor=20, batch_size=2, accum_steps=16, lookback=256, lr_predictor=1e-6, train_tokenizer=True, train_basemodel=True):
     """
@@ -26,7 +48,7 @@ def generate_bist_config(epochs_tokenizer=30, epochs_predictor=20, batch_size=2,
             "predict_window": 30,
             "max_context": 512,
             "clip": 5.0,
-            "train_ratio": 0.9,
+            "train_ratio": TRAIN_RATIO,
             "val_ratio": 0.1,
             "test_ratio": 0.0
         },
@@ -109,6 +131,7 @@ def run_training(config_file=CONFIG_PATH, skip_tokenizer=False, skip_basemodel=F
         process.wait()
         if process.returncode == 0:
             print(f"\n🎉 BIST 100 İnce Ayar Eğitimi Başarıyla Tamamlandı!")
+            write_training_cutoff()
             return True
         else:
             print(f"\n❌ [UYARI] Eğitim komutu hata ile kapandı. Çıkış kodu: {process.returncode}")

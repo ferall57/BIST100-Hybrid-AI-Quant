@@ -25,7 +25,8 @@ from bist_quant.bist_preprocess import preprocess_bist_for_kronos
 from bist_quant.bist_trainer import generate_bist_config, run_training
 from hybrid_agents.bist_committee import BistHybridCommittee, load_market_history
 from bist_quant.bist_scanner import BistScanner
-from bist_quant.bist_backtester import BistBacktester
+from bist_quant.bist_backtester import BistBacktester, SPOT_COSTS, VIOP_COSTS
+from bist_quant.backtest_engine import CostModel
 from bist_quant.bist_sentiment import BistSentimentEngine
 from bist_quant.bist_viop import BistViopEngine
 from bist_quant.bist_akd_flow import BistAkdFlowEngine
@@ -267,19 +268,62 @@ def handle_scan(mode: str = "bist30", top_n: int = 5, days: int = 15, model: str
     except Exception as e:
         print(f"\n[TARAMA HATASI] Tarama sırasında problem oluştu: {e}")
 
-def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False, use_viop: bool = False, leverage: float = 1.5):
+BPS_PER_UNIT = 10000.0
+
+def build_cost_model(commission_bps: float = None, slippage_bps: float = None, use_viop: bool = False) -> CostModel:
+    """CLI'dan gelen baz puan değerlerini maliyet modeline çevirir; verilmeyen değer varsayılanda kalır."""
+    defaults = VIOP_COSTS if use_viop else SPOT_COSTS
+    return CostModel(
+        commission_rate=defaults.commission_rate if commission_bps is None else commission_bps / BPS_PER_UNIT,
+        slippage_rate=defaults.slippage_rate if slippage_bps is None else slippage_bps / BPS_PER_UNIT,
+    )
+
+def handle_backtest_universe(mode: str = "bist30", months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False,
+                             use_viop: bool = False, leverage: float = 1.5, commission_bps: float = None, slippage_bps: float = None,
+                             fixed_tp: bool = False):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        tickers = get_tickers(mode=mode)
+        backtester = BistBacktester(use_kronos=use_kronos, costs=build_cost_model(commission_bps, slippage_bps, use_viop))
+        rows, summary = backtester.run_universe_backtest(
+            tickers, months=months, stop_loss_pct=sl, take_profit_pct=tp,
+            use_viop=use_viop, leverage=leverage, use_trailing_stop=not fixed_tp
+        )
+        print("\n" + "="*90)
+        print(f"EVREN BACKTEST SONUCU - {mode.upper()} ({summary['tickers_tested']} hisse, son {months} ay, maliyetler dahil)")
+        print("="*90)
+        print(f"{'Hisse':<12} {'Strateji %':<12} {'Al-Tut %':<12} {'Fark %':<12} {'İşlem':<8} {'MaxDD %':<10} {'Sharpe':<8}")
+        print("-" * 90)
+        for r in sorted(rows, key=lambda x: x["alpha"], reverse=True):
+            print(f"{r['ticker']:<12} {r['total_return_pct']:<+12.2f} {r['bnh_return_pct']:<+12.2f} {r['alpha']:<+12.2f} {r['total_trades']:<8} {r['max_drawdown']:<10.2f} {r['sharpe_ratio']:<8.2f}")
+        print("-" * 90)
+        if rows:
+            print(f"  • Medyan Strateji Getirisi   : %{summary['median_total_return_pct']:+.2f}")
+            print(f"  • Medyan Al-Tut Getirisi     : %{summary['median_bnh_return_pct']:+.2f}")
+            print(f"  • Medyan Fark (Alfa)         : %{summary['median_alpha']:+.2f}")
+            print(f"  • Al-Tut'u Geçen Hisse Oranı : %{summary['share_beating_buy_and_hold_pct']:.1f}")
+            print(f"  • Toplam İşlem Sayısı        : {summary['total_trades']}")
+        if summary["failed_tickers"]:
+            print(f"  • Test Edilemeyen Hisseler   : {', '.join(summary['failed_tickers'])}")
+        print("="*90)
+    except Exception as e:
+        print(f"\n[EVREN BACKTEST HATASI] Simülasyon sırasında problem oluştu: {e}")
+
+def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8.0, use_kronos: bool = False, use_viop: bool = False, leverage: float = 1.5,
+                    commission_bps: float = None, slippage_bps: float = None, fixed_tp: bool = False):
     if not ticker:
         print("[HATA] Lütfen backtest edilecek BIST sembolü girin. Örn: '--backtest ISCTR.IS'")
         return
     try:
-        backtester = BistBacktester(use_kronos=use_kronos)
+        backtester = BistBacktester(use_kronos=use_kronos, costs=build_cost_model(commission_bps, slippage_bps, use_viop))
         metrics, rep_file, chart_file = backtester.run_walk_forward_backtest(
             ticker=ticker,
             months=months,
             stop_loss_pct=sl,
             take_profit_pct=tp,
             use_viop=use_viop,
-            leverage=leverage
+            leverage=leverage,
+            use_trailing_stop=not fixed_tp
         )
         print("\n" + "="*80)
         print(f"BACKTEST TAMAMLANDI - [{ticker}] İÇİN FİNANSAL PERFORMANS METRİKLERİ:")
@@ -292,6 +336,8 @@ def handle_backtest(ticker: str, months: int = 6, sl: float = 3.5, tp: float = 8
         print(f"  • Maksimum Çekilme (MaxDD) : %{metrics['max_drawdown']:.2f}")
         print(f"  • Yıllık Sharpe Oranı      : {metrics['sharpe_ratio']:.2f}")
         print(f"  • Gerçekleşen İşlem Sayısı : {metrics['total_trades']} Adet (Ort. Süre: {metrics['avg_holding_days']:.1f} Gün)")
+        print(f"  • Toplam İşlem Maliyeti    : {metrics['total_costs_try']:,.2f} TRY")
+        print(f"  • Veri Sızıntısı Denetimi  : [{metrics['leakage_status']}] {metrics['leakage_note']}")
         print("="*80)
         print(f"Detaylı Performans Dosyası : {rep_file}")
         if chart_file:
@@ -447,6 +493,7 @@ def main():
     parser.add_argument("--akd-scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini Kurumsal Balina Para Akışına göre tara")
     parser.add_argument("--scan", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="BIST hisselerini otomatik tara ve en iyi fırsatları keşfet")
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
+    parser.add_argument("--backtest-universe", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Aynı backtest kurallarını tüm evrende koş; medyan fark ve Al-Tut'u geçen hisse oranını raporla")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
     parser.add_argument("--bot", action="store_true", help="Çift yönlü interaktif Telegram komuta botunu arka planda dinleyici olarak başlat")
     parser.add_argument("--sync-db", action="store_true", help="Tüm CSV mum verilerini yerel DuckDB analitik tablosuna senkronize et")
@@ -458,7 +505,10 @@ def main():
     parser.add_argument("--days", type=int, default=15, help="Projeksiyon gün sayısı (Varsayılan: 15)")
     parser.add_argument("--months", type=int, default=6, help="Backtest test periyodu (Ay)")
     parser.add_argument("--sl", type=float, default=3.5, help="Stop-Loss yüzdesi")
-    parser.add_argument("--tp", type=float, default=8.0, help="Take-Profit yüzdesi")
+    parser.add_argument("--tp", type=float, default=8.0, help="Take-Profit yüzdesi (yalnızca --fixed-tp ile kullanılır)")
+    parser.add_argument("--fixed-tp", action="store_true", help="Backtest'te iz süren stop yerine sabit Take-Profit hedefi kullan")
+    parser.add_argument("--commission-bps", type=float, default=None, help="Bacak başına komisyon (baz puan). Varsayılan: spot 10, VİOP 4")
+    parser.add_argument("--slippage-bps", type=float, default=None, help="Bacak başına fiyat kayması (baz puan). Varsayılan: 5")
     parser.add_argument("--use-kronos-backtest", action="store_true", help="Backtest içinde derin Kronos modelini çalıştır")
     parser.add_argument("--model", type=str, default="gemini-2.5-flash", help="Kullanılacak Gemini modeli")
     parser.add_argument("--tok-epochs", type=int, default=15, help="Fine-tuning: Tokenizer epok sayısı")
@@ -507,7 +557,12 @@ def main():
     if args.scan:
         handle_scan(mode=args.scan, top_n=args.top, days=args.days, model=args.model)
     if args.backtest:
-        handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage)
+        handle_backtest(args.backtest, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest, use_viop=args.viop, leverage=args.leverage,
+                        commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
+    if args.backtest_universe:
+        handle_backtest_universe(mode=args.backtest_universe, months=args.months, sl=args.sl, tp=args.tp, use_kronos=args.use_kronos_backtest,
+                                 use_viop=args.viop, leverage=args.leverage, commission_bps=args.commission_bps,
+                                 slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
 
 if __name__ == "__main__":
     main()
