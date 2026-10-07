@@ -68,7 +68,7 @@ Kronos-Base (Yapay Zeka Quant Tahmin Modeli) Çıktısı:
 """ + KRONOS_VALIDATION_RULE + """
 
 Lütfen yukarıdaki verileri (XU100 Endeks Kapısı, ICT BSL/SSL Likidite Avı, FVG %50 C.E. Denge Noktası, Hacimli Kırılım & Retest, AKD Para Akışı, Ekonometri ve Kronos-Base) sentezleyerek şu başlıklardan oluşan bir Teknik Rapor yaz:
-1. XU100 Endeks Rejimi ve Hisse Trend Uyumu (Endeks Kapısı Geçildi mi?)
+1. XU100 Endeks Rejimi ve Hisse Trend Uyumu (bağlam bilgisi; tek başına alımı engellemez)
 2. ICT Smart Money Değerlendirmesi: Likidite Avı (SSL/BSL), FVG %50 C.E. Giriş Seviyesi ve PO3 Döngüsü
 3. Hacim Profili, Para Akışı Göstergeleri (CMF, MFI; aracı kurum dağılımı yalnızca veri varsa) ve Retest Onayı
 4. Destek, Direnç, VWAP Seviyesi ve Stop-Loss Noktaları
@@ -157,7 +157,7 @@ Masanda Boğa (Bull) ve Ayı (Bear) arasında 2 TURLU KOR KORA BİR DİYALEKTİK
 Ayrıca önünde XU100 Endeks Kapısı ve ICT Smart Money (BSL/SSL Likidite Avı, FVG %50 C.E., Break & Retest) analizleri bulunuyor.
 
 KATI KURALLARIN:
-1. Eğer XU100 Gatekeeper "BEAR_REGIME" ise tekil hisselerde kesinlikle LONG alım verme; kararı "TUT" veya "VİOP SHORT / HEDGE" olarak açıkla.
+1. XU100 Gatekeeper rejimi bağlam bilgisidir; tek başına alım kararını engellemez. Rejim "BEAR_REGIME" ise bunu risk değerlendirmesinde belirt, pozisyon büyüklüğü ve stop seviyesi önerirken dikkate al.
 2. Fiyat aşırı primliyse veya FVG %50 C.E. / Retest seviyesinden uzaksa, piyasa fiyatından acele alım verme! Kesin Şartlı Tetikleyiciler bölümünde "%50 FVG C.E. seviyesine veya Retest desteğine geri çekilme halinde limit alım" şartı koy.
 3. """ + DATA_INTEGRITY_RULE + """
 4. """ + KRONOS_VALIDATION_RULE + """

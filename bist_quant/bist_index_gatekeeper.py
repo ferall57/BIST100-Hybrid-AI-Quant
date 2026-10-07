@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🏛️ BIST 100 ENDEKS KAPISI VE PİYASA REJİMİ MOTORU (INDEX GATEKEEPER)
-Borsa Workout Kuralı: "Endeks 50 Günlük SMA altındaysa veya düşüş trendindeyse tekil hisselerde agresif LONG açılmaz."
+🏛️ BIST 100 PİYASA REJİMİ MOTORU (INDEX GATEKEEPER)
 1. XU100.IS günlük trendini (SMA50, EMA21, ADX/DMI, RSI) analiz eder.
 2. Piyasa Rejimi Çıkarır: BULL_REGIME (Boğa), NEUTRAL_CHOP (Yatay/Testere), BEAR_REGIME (Ayı/Düşüş).
-3. Katı Filtre (Hard Gatekeeper):
-   - BULL_REGIME: Tüm VİOP LONG / Spot sinyallerine tam ağırlıkla (1.0x) izin verir.
-   - NEUTRAL_CHOP: Sadece A+ SSL Sweep ve FVG C.E. teyitli sinyallere yarım ağırlıkla (0.5x) izin verir.
-   - BEAR_REGIME: Tekil hisse LONG alımlarını KESİNLİKLE ENGELLER (Veto), sistemi VİOP SHORT / Delta-Hedge moduna kilitler.
+3. Rejim komiteye bağlam bilgisi olarak sunulur; alım kararını programatik olarak engellemez.
+   Ölçüm (python main.py --ablation): rejime dayalı alım yasağı BIST30 backtest'inde getiriyi artırmadı,
+   24 ve 36 aylık dönemlerde düşürdü. 'is_long_allowed' alanı yalnızca backtest'teki isteğe bağlı
+   endeks kapısı filtresi tarafından kullanılır.
 """
 
 import os
@@ -97,19 +96,19 @@ def compute_market_regime(df: pd.DataFrame) -> dict:
         is_long_allowed = True
         is_short_allowed = False
         multiplier = 1.0
-        desc = "XU100 Güçlü Boğa Rejiminde (SMA50 & EMA21 Üzerinde) -> Tüm LONG sinyaller serbest."
+        desc = "XU100 güçlü boğa rejiminde (SMA50 ve EMA21 üzerinde)."
     elif regime_score <= 35.0 or (not above_sma50 and not above_ema21):
         regime = "BEAR_REGIME"
-        is_long_allowed = False  # KATI KAPI: LONG ALIMLAR ENGELLENDİ
+        is_long_allowed = False  # yalnızca backtest'teki isteğe bağlı endeks kapısı filtresi bu alanı kullanır
         is_short_allowed = True
         multiplier = 0.0
-        desc = "🚨 XU100 Katı Ayı Rejiminde (SMA50 Altında) -> Tekil hissede LONG alımlar ENGELLENDİ / Sadece SHORT & HEDGE serbest."
+        desc = "XU100 ayı rejiminde (SMA50 ve EMA21 altında ya da rejim puanı düşük)."
     else:
         regime = "NEUTRAL_CHOP"
         is_long_allowed = True
         is_short_allowed = True
         multiplier = 0.5
-        desc = "XU100 Testere / Yatay Rejimde -> Sadece A+ ICT kurulumlarına yarım riskle (0.5x) izin verilir."
+        desc = "XU100 yatay / testere rejiminde."
 
     return {
         "regime": regime,
@@ -170,10 +169,10 @@ class BistIndexGatekeeper:
 • 21 Günlük EMA Desteği: {r.get('ema_21', 0.0):.2f} TRY
 • RSI & Trend Gücü (ADX): RSI {r.get('rsi_14', 50.0)} | ADX {r.get('adx_14', 20.0)}
 --------------------------------------------------------------------------------
-🛡️ İŞLEM İZİN PROTOKOLÜ (BORSA WORKOUT GATEKEEPER):
-• Tekil Hisse LONG İzni  : {'AÇIK ✅ (Normal Ağırlık)' if r.get('is_long_allowed') and r.get('long_size_multiplier', 1.0) == 1.0 else ('KISITLI 🟡 (0.5x Yarım Ağırlık)' if r.get('is_long_allowed') else 'KAPALI / YASAK 🛑 (Hard Block)')}
-• VİOP SHORT / Hedge İzni: {'AKTİF 🛡️' if r.get('is_short_allowed') else 'PASİF'}
-• Operasyonel Direktif  : {r.get('desc', '')}
+ℹ️ KULLANIM NOTU:
+• Rejim Açıklaması : {r.get('desc', '')}
+• Bu rejim bağlam bilgisidir; tek başına alım kararını engellemez.
+• Ölçüm: rejime dayalı alım yasağı backtest'te getiriyi artırmadı ('python main.py --ablation').
 ================================================================================"""
         return report
 

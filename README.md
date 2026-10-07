@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-149-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-157-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -121,12 +121,12 @@ Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 | **Kronos tahmini** | Kronos-base (102,3M parametre) ile 5 ve 15 günlük mum tahmini; BIST verisiyle ince ayar yapılabilir | Çalışıyor; tahmin isabeti doğrulanmadı (yukarıdaki tablo) |
 | **Ekonometri** | ADF/KPSS, Jarque-Bera, Durbin-Watson, Breusch-Godfrey, ARCH-LM, XU100'e karşı CAPM alfa/beta, GARCH(1,1) ve Merton sıçramalı Monte Carlo | Çalışıyor; sıçrama parametreleri sabit varsayımdır |
 | **ICT fiyat hareketi** | Likidite süpürmesi (BSL/SSL), Fair Value Gap, kırılım-retest tespiti | Kural tabanlı; backtest'te tutarlı katkı göstermedi |
-| **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor; backtest'te giriş filtresi olarak 24 ve 36 ayda sonucu kötüleştirdi |
+| **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor; komiteye yalnızca bağlam bilgisi olarak verilir. Backtest'te giriş filtresi olarak 24 ve 36 ayda sonucu kötüleştirdi |
 | **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez**; backtest'te tutarlı katkı göstermedi |
 | **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
 | **KAP bildirimleri** | `kap.org.tr` uç noktasını sorgular; duyarlılık motoru Google News RSS'e düşer | KAP uç noktası 7 Ekim 2026 denemesinde yanıt vermedi; bu durumda "VERİ YOK" bildirilir |
 | **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; kararların isabeti ölçülmedi |
-| **Deterministik veto** | Endeks rejimi alıma kapalıysa, ya da Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor |
+| **Deterministik veto** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor; etkisi ölçülmedi. Endeks rejimine dayalı veto, ölçüm sonucunda kaldırıldı |
 | **Karar hafızası** | Geçmiş komite kararlarını ve sonradan gerçekleşen getiriyi saklar, sonraki analize özet olarak verir | Çalışıyor |
 | **İşlem hafızası** | Kullanıcının kaydettiği işlemleri ve çıkarılan dersleri saklar | Boş başlar; kayıt yoksa "kayıt yok" |
 | **VİOP hesapları** | Taşıma maliyetiyle teorik vadeli fiyat, Black-Scholes-Merton primi ve Greeks, pozisyon büyüklüğü | Çalışıyor; teminat oranları kodda sabit yaklaşık değerlerdir, Takasbank'ın güncel oranlarıyla doğrulanmadı |
@@ -168,7 +168,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 149 test
+python -m pytest tests          # 157 test
 ```
 
 ---
@@ -239,8 +239,8 @@ python main.py --compare-models bist30
 - **Kanıtlanmış bir avantaj yok.** Ne kural tabanlı strateji ne de Kronos tahmini kıyaslamayı geçti.
 - **Komite kararları ölçülmedi.** Gemini komitesinin kararlarının isabetine dair sistematik bir test yoktur.
 - **Bileşenler katkı göstermedi.** ICT kuralları ve para akışı skoru backtest'te tutarlı bir iyileşme sağlamadı;
-  XU100 endeks kapısı uzun dönemlerde sonucu kötüleştirdi. Komite bu bileşenleri hâlâ girdi olarak kullanıyor ve
-  endeks rejimine dayalı vetoyu uyguluyor.
+  XU100 endeks kapısı uzun dönemlerde sonucu kötüleştirdi. Bu ölçümün ardından endeks rejimine dayalı veto
+  kaldırıldı; rejim, ICT ve para akışı komiteye bağlam bilgisi olarak girmeye devam ediyor.
 - **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
   bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
 - **Hisse listesi güncel değil.** BIST100 listesindeki 112 sembolden 4'ü (IPEKE, KNYAS, KOZAL, KOZAA) indirilemiyor.

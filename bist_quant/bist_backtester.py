@@ -348,6 +348,7 @@ class BistBacktester:
             "leakage_status": leak_code,
             "leakage_note": leak_note,
             "blocked_entries": blocked_entries,
+            "trade_log": trades,
         }
         if not write_artifacts:
             return metrics, None, None

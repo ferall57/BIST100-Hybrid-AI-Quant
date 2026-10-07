@@ -127,6 +127,15 @@ def test_index_gate_lets_entries_through_while_the_index_is_rising(sandbox):
     assert gated["total_trades"] > 0
 
 
+def test_metrics_include_the_trade_log_for_later_analysis(sandbox):
+    _write_history(sandbox, "UP.IS", _uptrend())
+
+    metrics, _ = _run(NO_COSTS)
+
+    assert len(metrics["trade_log"]) == metrics["total_trades"]
+    assert {"entry_date", "exit_date", "return_pct", "direction"} <= set(metrics["trade_log"][0])
+
+
 def test_backtest_can_skip_report_files(sandbox):
     _write_history(sandbox, "UP.IS", _uptrend())
 

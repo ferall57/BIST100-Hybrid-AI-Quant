@@ -73,6 +73,24 @@ def load_market_history(period: str = COMMITTEE_HISTORY_PERIOD) -> pd.DataFrame 
 def _is_valid_price(value) -> bool:
     return value is not None and not np.isnan(value) and value > 0
 
+MC_VETO_MAX_WIN_PROBABILITY_PCT = 38.0
+CMF_VETO_MAX = -0.12
+
+def risk_veto_reason(parsed_verdict: str, mc_data: dict, akd_data: dict) -> str | None:
+    """
+    Alım kararını programatik olarak TUT'a çeviren tek kural: Monte Carlo kazanma olasılığı düşük VE hacim
+    tabanlı para çıkışı var. Veto gerekçesini döndürür; veto yoksa None. Ayrıştırılamayan karar alım gibi ele alınır.
+    XU100 endeks rejimi bu kurala girmez: backtest ölçümünde alım yasağı getiriyi artırmadı, bağlam bilgisidir.
+    """
+    if parsed_verdict not in (VERDICT_BUY, VERDICT_UNKNOWN):
+        return None
+    win_probability = mc_data.get("prob_positive", 50.0)
+    money_flow = akd_data.get("cmf_20", 0.0)
+    if win_probability < MC_VETO_MAX_WIN_PROBABILITY_PCT and money_flow < CMF_VETO_MAX:
+        return (f"Merton MC Kazanma Olasılığı (%{win_probability:.1f} < %{MC_VETO_MAX_WIN_PROBABILITY_PCT:.0f}) "
+                f"ve CMF Para Çıkışı ({money_flow:.3f})")
+    return None
+
 def pick_live_price(last_price, previous_close, fallback: float) -> float:
     """Canlı fiyat geçerliyse onu, değilse önceki kapanışı, o da yoksa CSV kapanışını döndürür."""
     if _is_valid_price(last_price):
@@ -408,33 +426,20 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 🛡️ DETERMINİSTİK HARD-GATE VETO KAPILARI (ENDEKS KAPISI & EKONOMETRİ)
-        # Karar tek sefer, veto uyarıları metne eklenmeden önce ayrıştırılır.
-        # Ayrıştırılamayan karar veto açısından alım gibi ele alınır (güvenli taraf).
+        # 🛡️ DETERMINİSTİK RİSK VETOSU (MONTE CARLO + PARA ÇIKIŞI)
+        # Karar tek sefer, veto uyarısı metne eklenmeden önce ayrıştırılır.
+        # XU100 endeks rejimi kararı programatik olarak değiştirmez; komiteye bağlam bilgisi olarak sunulur.
         parsed_verdict = parse_verdict_type(executive_verdict)
-        is_vetoable = parsed_verdict in (VERDICT_BUY, VERDICT_UNKNOWN)
 
-        veto_triggered = False
-        veto_reason = ""
-        market_regime = self.gatekeeper_engine.get_market_regime()
-        if not market_regime.get("is_long_allowed", True):
-            if is_vetoable:
-                veto_triggered = True
-                veto_reason = f"XU100 Rejimi: {market_regime.get('regime')} (SMA50 Altında)"
-                executive_verdict = f"""> [!WARNING]
-> 🛡️ **BORSA WORKOUT XU100 ENDEKS KAPISI VETOSU DEVREDE:**
-> BIST 100 Endeksi ({market_regime.get('xu100_close')} TRY) 50 Günlük SMA desteğinin ({market_regime.get('sma_50')} TRY) altında ve ayı rejiminde olduğu için; hisse bazındaki alım sinyali **"TUT / VİOP HEDGE (Risk-Off)"** moduna programatik olarak çekilmiştir.
-""" + executive_verdict
 
         mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
         akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
         
-        if mc_data.get("prob_positive", 50.0) < 38.0 and akd_data.get("cmf_20", 0.0) < -0.12:
-            if is_vetoable:
-                veto_triggered = True
-                veto_reason = f"Merton MC Kazanma Olasılığı (%{mc_data.get('prob_positive', 0.0):.1f} < %38) ve CMF Para Çıkışı ({akd_data.get('cmf_20', 0.0):.3f})"
-                executive_verdict = f"""> [!WARNING]
-> 🛡️ **DETERMİNİSTİK HARD-GATE VETO KALKANI DEVREDE:**
+        veto_reason = risk_veto_reason(parsed_verdict, mc_data, akd_data)
+        veto_triggered = veto_reason is not None
+        if veto_triggered:
+            executive_verdict = f"""> [!WARNING]
+> 🛡️ **DETERMİNİSTİK RİSK VETOSU DEVREDE:**
 > Yapay zeka delegasyonu yükseliş yönlü tezler sunsa da; **matematiksel risk eşikleri** ({veto_reason}) nedeniyle komite kararı programatik olarak **"TUT / GÖZLEMLE (Beklemede Kal)"** seviyesine revize edilmiştir.
 """ + executive_verdict
 
