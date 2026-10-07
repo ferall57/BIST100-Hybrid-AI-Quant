@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-133-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-149-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -53,6 +53,30 @@ yazı-tura düzeyindedir. Bu nedenle Kronos çıktısı sistemde **DOĞRULANMADI
 gerekçe yapılmaz ve tarama sıralamasında kullanılmaz. Test dönemi model seçiminde kullanılan doğrulama dönemiyle
 örtüştüğü için sonuç ince ayarlı model lehine hafif iyimserdir.
 
+### Bileşen katkısı, BIST30, maliyetler dahil
+
+`python main.py --ablation bist30 --months 12`
+
+Her bileşen kural tabanlı stratejiye giriş filtresi olarak eklenip aynı 33 hissede yeniden koşuldu. Hücreler,
+temel kurallara göre hisse başına medyan getiri farkını (puan) ve iyileşen / kötüleşen hisse sayısını gösterir.
+
+| Eklenen bileşen | 12 ay | 24 ay | 36 ay |
+| :--- | ---: | ---: | ---: |
+| ICT kurulumu şartı | +6,01 (21 / 12) | −1,64 (16 / 17) | +3,36 (18 / 15) |
+| Para akışı şartı | 0,00 (16 / 13) | +3,26 (21 / 12) | +0,62 (17 / 16) |
+| XU100 endeks kapısı | 0,00 (12 / 11) | −2,68 (12 / 20) | −2,50 (8 / 24) |
+| Üçü birlikte | +7,96 (20 / 13) | −0,04 (16 / 17) | −4,79 (16 / 17) |
+| Hissenin kendi rejim filtresi kapalı | 0,00 (5 / 10) | 0,00 (11 / 8) | 0,00 (16 / 6) |
+
+Hiçbir bileşen tutarlı bir katkı göstermedi. ICT ve para akışının etkisi döneme göre yön değiştiriyor ve istatistiksel
+olarak anlamlı değil. XU100 endeks kapısı 24 ve 36 ayda sonucu kötüleştirdi (36 ayda işaret testi p=0,007; 15
+karşılaştırma yapıldığı için sınırda bir bulgudur). Hiçbir varyant hiçbir dönemde al-tut'u geçemedi. Üç dönem iç içedir,
+birbirinden bağımsız değildir. Ölçüm bileşenlerin kural tabanlı ve yalnızca alım yönlü kullanımını kapsar; komitenin
+aynı bileşenleri metin olarak yorumlaması ölçülmemiştir.
+
+Bu koşuda temel kuralların 12 aylık medyan getirisi −%3,80 çıktı; yukarıdaki tabloda −%6,01 idi. İki koşu aynı gün
+farklı saatlerde alınan veriyle yapıldı; farkın nedeni ayrıca incelenmedi.
+
 ---
 
 ## Sistem Akışı
@@ -96,9 +120,9 @@ Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 | :--- | :--- | :--- |
 | **Kronos tahmini** | Kronos-base (102,3M parametre) ile 5 ve 15 günlük mum tahmini; BIST verisiyle ince ayar yapılabilir | Çalışıyor; tahmin isabeti doğrulanmadı (yukarıdaki tablo) |
 | **Ekonometri** | ADF/KPSS, Jarque-Bera, Durbin-Watson, Breusch-Godfrey, ARCH-LM, XU100'e karşı CAPM alfa/beta, GARCH(1,1) ve Merton sıçramalı Monte Carlo | Çalışıyor; sıçrama parametreleri sabit varsayımdır |
-| **ICT fiyat hareketi** | Likidite süpürmesi (BSL/SSL), Fair Value Gap, kırılım-retest tespiti | Kural tabanlı; getiriye katkısı ölçülmedi |
-| **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor |
-| **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez** |
+| **ICT fiyat hareketi** | Likidite süpürmesi (BSL/SSL), Fair Value Gap, kırılım-retest tespiti | Kural tabanlı; backtest'te tutarlı katkı göstermedi |
+| **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor; backtest'te giriş filtresi olarak 24 ve 36 ayda sonucu kötüleştirdi |
+| **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez**; backtest'te tutarlı katkı göstermedi |
 | **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
 | **KAP bildirimleri** | `kap.org.tr` uç noktasını sorgular; duyarlılık motoru Google News RSS'e düşer | KAP uç noktası 7 Ekim 2026 denemesinde yanıt vermedi; bu durumda "VERİ YOK" bildirilir |
 | **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; kararların isabeti ölçülmedi |
@@ -144,7 +168,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 133 test
+python -m pytest tests          # 149 test
 ```
 
 ---
@@ -182,6 +206,7 @@ python main.py --backtest FROTO.IS --months 12                      # Tek hisse,
 python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest # Aynı kurallar, Kronos tahminiyle
 python main.py --backtest FROTO.IS --viop --leverage 1.5            # Çift yönlü, kaldıraçlı
 python main.py --backtest-universe bist30 --months 12               # Tüm evren: medyan fark, al-tut'u geçen oran
+python main.py --ablation bist30 --months 12                        # Bileşen katkısı: ICT, para akışı, XU100 kapısı, rejim filtresi
 ```
 
 Seçenekler: `--commission-bps` ve `--slippage-bps` (varsayılan spot 10 + 5, VİOP 4 + 5 baz puan), `--sl`,
@@ -213,7 +238,9 @@ python main.py --compare-models bist30
 
 - **Kanıtlanmış bir avantaj yok.** Ne kural tabanlı strateji ne de Kronos tahmini kıyaslamayı geçti.
 - **Komite kararları ölçülmedi.** Gemini komitesinin kararlarının isabetine dair sistematik bir test yoktur.
-- **Bileşen katkısı ölçülmedi.** ICT kuralları, para akışı skoru ve endeks kapısının sonuca tek tek etkisi bilinmiyor.
+- **Bileşenler katkı göstermedi.** ICT kuralları ve para akışı skoru backtest'te tutarlı bir iyileşme sağlamadı;
+  XU100 endeks kapısı uzun dönemlerde sonucu kötüleştirdi. Komite bu bileşenleri hâlâ girdi olarak kullanıyor ve
+  endeks rejimine dayalı vetoyu uyguluyor.
 - **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
   bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
 - **Hisse listesi güncel değil.** BIST100 listesindeki 112 sembolden 4'ü (IPEKE, KNYAS, KOZAL, KOZAA) indirilemiyor.
@@ -239,6 +266,8 @@ KRONOS/
 │   ├── kronos_validation.py           # Doğrulama durumu ve etiketi
 │   ├── backtest_engine.py             # Çıkış simülasyonu, maliyet modeli, metrikler
 │   ├── bist_backtester.py             # Walk-forward ve evren backtesti
+│   ├── entry_filters.py               # Açılıp kapanabilen giriş filtreleri (ICT, para akışı, XU100 kapısı)
+│   ├── bist_ablation.py               # Bileşen katkı ölçümü
 │   ├── bist_econometrics.py           # Tanı testleri, CAPM, GARCH, Merton Monte Carlo
 │   ├── bist_price_action.py           # ICT kuralları
 │   ├── bist_index_gatekeeper.py       # XU100 rejimi
