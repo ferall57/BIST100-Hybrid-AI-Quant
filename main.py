@@ -487,6 +487,54 @@ def handle_ablation(mode: str = "bist30", months: int = 12):
     except Exception as e:
         print(f"\n[KATKI ÖLÇÜMÜ HATASI] {e}")
 
+def _fmt(value, spec: str = "+.2f") -> str:
+    return "—" if value is None else format(value, spec)
+
+def handle_score_decisions(memory_path: str = None, data_dir: str = None):
+    import json
+    from bist_quant import bist_decision_scorer as scorer
+    from bist_quant.bist_memory import MEMORY_FILE
+
+    memory_path = memory_path or MEMORY_FILE
+    data_dir = data_dir or scorer.RAW_DATA_DIR
+    try:
+        with open(memory_path, "r", encoding="utf-8") as f:
+            history = json.load(f).get("history", [])
+    except (OSError, ValueError) as e:
+        print(f"\n[KARAR ÖLÇÜMÜ HATASI] Hafıza okunamadı: {e}")
+        return
+
+    scores = scorer.score_memory(history, data_dir=data_dir)
+    print("\n" + "="*100)
+    print(f"KOMİTE KARAR İSABETİ - {len(history)} kayıt, giriş = kayıtlı spot fiyat, fazla getiri XU100'e göre")
+    print("="*100)
+    for horizon in scorer.HORIZONS:
+        summary = scorer.summarize_scores([s for s in scores if s["horizon"] == horizon])
+        print(f"\nVade: {horizon} gün")
+        print(f"{'Karar':<7} {'Ölçülen':<8} {'Bekleyen':<9} {'Hisse':<6} {'İsabet':<8} {'%95 aralık':<14} {'Ort. getiri %':<14} {'Ort. fazla %':<12}")
+        print("-" * 100)
+        for verdict, s in summary.items():
+            hits = "—" if s["hits"] is None else f"{s['hits']}/{s['n']}"
+            low, high = s["hit_rate_ci"]
+            ci = "—" if low is None else f"{low:.0%}-{high:.0%}"
+            print(f"{verdict:<7} {s['n']:<8} {s['pending']:<9} {s['tickers']:<6} {hits:<8} {ci:<14} {_fmt(s['mean_return_pct']):<14} {_fmt(s['mean_excess_pct']):<12}")
+
+    print("\nKayıt bazında (5 gün):")
+    for s in (s for s in scores if s["horizon"] == scorer.HORIZONS[0]):
+        hit = {True: "isabet", False: "ıska", None: "—"}[s["hit"]]
+        print(f"  {s['record_id']:<24} {s['verdict']:<4} {s['status']:<8} getiri {_fmt(s['return_pct']):>7} "
+              f"fazla {_fmt(s['excess_pct']):>7} {hit:<7} ilk temas {s.get('first_touch') or '—'}")
+
+    flagged = {s["record_id"]: s["level_problem"] for s in scores if s.get("level_problem")}
+    if flagged:
+        print("\nKayıt sorunları (ilk temas ölçülmedi):")
+        for record_id, problem in flagged.items():
+            print(f"  {record_id}: {problem}")
+    missing = sorted({s["ticker"] for s in scores if s["status"] == "NO_DATA"})
+    if missing:
+        print(f"\nFiyat verisi yok: {', '.join(missing)}")
+    print("="*100)
+
 def handle_bot():
     from private_interactive_telegram import InteractiveTelegramBot
     import time
@@ -536,6 +584,7 @@ def main():
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
     parser.add_argument("--backtest-universe", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Aynı backtest kurallarını tüm evrende koş; medyan fark ve Al-Tut'u geçen hisse oranını raporla")
     parser.add_argument("--ablation", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Giriş kurallarını (ICT, para akışı, XU100 kapısı, rejim filtresi) tek tek açıp kapatarak her birinin backtest sonucuna katkısını ölç")
+    parser.add_argument("--score-decisions", action="store_true", help="Hafızadaki komite kararlarını 5 ve 10 işlem günü sonra gerçekleşen getiriyle ve XU100'e göre ölç")
     parser.add_argument("--compare-models", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Temel Kronos ile ince ayarlı modelleri aynı hisse ve tarihlerde tahmin isabetine göre karşılaştır")
     parser.add_argument("--origins", type=int, default=12, help="Model karşılaştırmasında hisse başına tahmin noktası sayısı")
     parser.add_argument("--viop-signals", action="store_true", help="BIST 30 kontratları için Canlı VİOP (Long / Short) sinyal ve pozisyon taraması yap")
@@ -610,6 +659,8 @@ def main():
                         commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
     if args.ablation:
         handle_ablation(mode=args.ablation, months=args.months)
+    if args.score_decisions:
+        handle_score_decisions()
     if args.compare_models:
         handle_compare_models(mode=args.compare_models, origins_per_ticker=args.origins)
     if args.backtest_universe:
