@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-181-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-217-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -77,6 +77,36 @@ aynı bileşenleri metin olarak yorumlaması ölçülmemiştir.
 Bu koşuda temel kuralların 12 aylık medyan getirisi −%3,80 çıktı; yukarıdaki tabloda −%6,01 idi. İki koşu aynı gün
 farklı saatlerde alınan veriyle yapıldı; farkın nedeni ayrıca incelenmedi.
 
+### Monte Carlo + para çıkışı vetosu, BIST30, son 24 ay
+
+`python main.py --veto-study bist30 --months 24`
+
+Veto yalnızca fiyat verisine dayandığı için geçmişte yeniden oynatıldı: 33 hissede 5 işlem gününde bir, yalnızca o
+güne kadarki veriyle MC olasılığı ve CMF hesaplandı (3.333 nokta). Vetonun devrede olduğu günlerin ileri getirisi,
+devre dışı günlerle karşılaştırıldı. Veto noktaların %10,1'inde (336) devreye girdi.
+
+| Vade | Getiri, devrede / devre dışı | XU100'e göre fazla getiri, devrede / devre dışı | Devrede daha kötü hisse | p |
+| :--- | ---: | ---: | ---: | ---: |
+| 5 gün | +%0,51 / +%0,34 | −0,21 / +0,02 | 14 / 31 | 0,050 |
+| 10 gün | +%1,02 / +%0,64 | −0,39 / +0,03 | 12 / 31 | 0,013 |
+| 15 gün | +%1,55 / +%0,96 | −0,18 / −0,01 | 9 / 31 | 0,144 |
+
+Vetonun devreye girdiği günlerde hisseler ortalamada **daha çok** yükseldi; alımı engellemek getiriyi kaçırdı. Endekse
+göre devrede günler 0,2–0,4 puan geride kaldı, ancak bu fark küçük ve hisselerin çoğunda tersi oldu. Değerlendirme
+noktaları vade boyunca örtüştüğü ve hisseler birlikte hareket ettiği için p değerleri olduğundan güçlü görünür.
+Parçalar tek başına: MC < %38 hiçbir ayrım göstermedi (p 0,17–0,60); MC'nin düşük olduğu günler sonradan daha çok
+yükseldi. CMF < −0,12 tek başına da endekse göre benzer küçük bir fark verdi. Ölçüm tüm günleri kapsar; komitenin AL
+dediği günlerin seçimini test etmez.
+
+### Komite kararları, 18 kayıt (23 Ağustos – 16 Ekim 2026)
+
+`python main.py --score-decisions`
+
+Her karar kayıtlı spot fiyattan 5 ve 10 işlem günü sonraki kapanışa ölçüldü. 5 günde 10 AL kararının 7'si yükseldi
+(%95 aralık %40–89); ortalama getiri −%0,99, XU100'e göre ortalama fazla getiri +2,18 puan. 10 AL kararı yalnızca
+5 hisseye ait ve 4'ü aynı hafta TUPRS'tir; örneklem bir beceri iddiası için çok küçüktür. İki SAT kaydında stop
+spotun altında, bir kayıtta güven skoru 419 idi; hafıza artık bu değerleri saklamıyor.
+
 ---
 
 ## Sistem Akışı
@@ -125,8 +155,8 @@ Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 | **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez**; backtest'te tutarlı katkı göstermedi |
 | **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
 | **KAP bildirimleri** | `kap.org.tr` uç noktasını sorgular; duyarlılık motoru Google News RSS'e düşer | KAP uç noktası 7 Ekim 2026 denemesinde yanıt vermedi; bu durumda "VERİ YOK" bildirilir |
-| **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; kararların isabeti ölçülmedi |
-| **Deterministik veto** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor; etkisi ölçülmedi. Endeks rejimine dayalı veto, ölçüm sonucunda kaldırıldı |
+| **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; 18 kararın isabeti ölçüldü, örneklem bir sonuç için çok küçük |
+| **Deterministik veto** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor; ölçümde devrede olduğu günler daha kötü getiri vermedi. Endeks rejimine dayalı veto, ölçüm sonucunda kaldırıldı |
 | **Karar hafızası** | Geçmiş komite kararlarını ve sonradan gerçekleşen getiriyi saklar, sonraki analize özet olarak verir | Çalışıyor |
 | **İşlem hafızası** | Kullanıcının kaydettiği işlemleri ve çıkarılan dersleri saklar | Boş başlar; kayıt yoksa "kayıt yok" |
 | **VİOP hesapları** | Taşıma maliyetiyle teorik vadeli fiyat, Black-Scholes-Merton primi ve Greeks, pozisyon büyüklüğü | Çalışıyor; teminat oranları kodda sabit yaklaşık değerlerdir, Takasbank'ın güncel oranlarıyla doğrulanmadı |
@@ -168,7 +198,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 181 test
+python -m pytest tests          # 217 test
 ```
 
 ---
@@ -197,6 +227,7 @@ python main.py --pairs-trade ISCTR.IS,AKBNK.IS    # Eşbütünleşme
 python main.py --greeks THYAO.IS                  # BSM primi ve Greeks
 python main.py --portfolio-opt "THYAO.IS,ISCTR.IS,AKBNK.IS,ASELS.IS,BIMAS.IS"
 python main.py --memory ISCTR.IS                  # Geçmiş komite kararları ve gerçekleşen getiri
+python main.py --score-decisions                  # Tüm komite kararları: 5 ve 10 gün sonraki getiri, XU100'e göre
 ```
 
 ### Backtest
@@ -207,6 +238,7 @@ python main.py --backtest FROTO.IS --months 12 --use-kronos-backtest # Aynı kur
 python main.py --backtest FROTO.IS --viop --leverage 1.5            # Çift yönlü, kaldıraçlı
 python main.py --backtest-universe bist30 --months 12               # Tüm evren: medyan fark, al-tut'u geçen oran
 python main.py --ablation bist30 --months 12                        # Bileşen katkısı: ICT, para akışı, XU100 kapısı, rejim filtresi
+python main.py --veto-study bist30 --months 24                      # MC + para çıkışı vetosu: devrede / devre dışı günlerin ileri getirisi
 ```
 
 Seçenekler: `--commission-bps` ve `--slippage-bps` (varsayılan spot 10 + 5, VİOP 4 + 5 baz puan), `--sl`,
@@ -237,10 +269,12 @@ python main.py --compare-models bist30
 ## Bilinen Sınırlar
 
 - **Kanıtlanmış bir avantaj yok.** Ne kural tabanlı strateji ne de Kronos tahmini kıyaslamayı geçti.
-- **Komite kararları ölçülmedi.** Gemini komitesinin kararlarının isabetine dair sistematik bir test yoktur.
+- **Komite kararlarının örneklemi küçük.** 18 karar ölçüldü (`--score-decisions`); 5 hisseye ait 10 AL kararı bir
+  beceri iddiası için yetersizdir.
 - **Bileşenler katkı göstermedi.** ICT kuralları ve para akışı skoru backtest'te tutarlı bir iyileşme sağlamadı;
   XU100 endeks kapısı uzun dönemlerde sonucu kötüleştirdi. Bu ölçümün ardından endeks rejimine dayalı veto
-  kaldırıldı; rejim, ICT ve para akışı komiteye bağlam bilgisi olarak girmeye devam ediyor.
+  kaldırıldı; rejim, ICT ve para akışı komiteye bağlam bilgisi olarak girmeye devam ediyor. MC + para çıkışı vetosu
+  da devrede olduğu günlerde daha kötü getiri öngörmedi; kod içinde hâlâ alım kararını TUT'a çeviriyor.
 - **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
   bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
 - **Hisse listesi güncel değil.** BIST100 listesindeki 112 sembolden 4'ü (IPEKE, KNYAS, KOZAL, KOZAA) indirilemiyor.
@@ -268,6 +302,8 @@ KRONOS/
 │   ├── bist_backtester.py             # Walk-forward ve evren backtesti
 │   ├── entry_filters.py               # Açılıp kapanabilen giriş filtreleri (ICT, para akışı, XU100 kapısı)
 │   ├── bist_ablation.py               # Bileşen katkı ölçümü
+│   ├── bist_veto_study.py             # MC + para çıkışı vetosunun geçmiş veride ölçümü
+│   ├── bist_decision_scorer.py        # Komite kararlarının sabit vadede isabet ölçümü
 │   ├── bist_econometrics.py           # Tanı testleri, CAPM, GARCH, Merton Monte Carlo
 │   ├── bist_price_action.py           # ICT kuralları
 │   ├── bist_index_gatekeeper.py       # XU100 rejimi
