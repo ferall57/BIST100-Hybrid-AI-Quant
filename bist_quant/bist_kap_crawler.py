@@ -12,7 +12,7 @@ import sys
 import json
 import time
 import requests
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import List, Dict, Any
 
@@ -89,8 +89,9 @@ class BistKapCrawler:
     KAP (kap.gov.tr) ve resmi finansal veri kaynaklarından doğrudan bildirim toplayıcı.
     """
 
-    def __init__(self, timeout: int = 8):
+    def __init__(self, timeout: int = 8, kap_scraper=None):
         self.timeout = timeout
+        self._kap_scraper = kap_scraper
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
@@ -105,32 +106,17 @@ class BistKapCrawler:
         clean_ticker = ticker.replace(".IS", "").upper()
         disclosures = []
 
-        # 1. KAP Doğrudan Bildirim Uç Noktası (Public Disclosure Platform API)
-        kap_api_url = f"https://www.kap.org.tr/tr/api/disclosures"
-        
-        try:
-            params = {
-                "stockCodes": clean_ticker,
-                "fromDate": (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"),
-                "toDate": datetime.now().strftime("%Y-%m-%d")
-            }
-            resp = requests.get(kap_api_url, headers=self.headers, params=params, timeout=self.timeout)
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                if isinstance(data, list):
-                    for item in data[:max_items]:
-                        title = item.get("disclosureType", "") + " - " + item.get("title", item.get("summary", ""))
-                        publish_date = item.get("publishDate", datetime.now().strftime("%Y-%m-%d"))
-                        disclosures.append({
-                            "title": title.strip(),
-                            "source": "KAP Doğrudan Bildirim",
-                            "published": publish_date,
-                            "summary": item.get("summary", title).strip(),
-                            "is_official_kap": True
-                        })
-        except Exception:
-            pass
+        # 1. KAP'ın kendi bildirim sorgusu (bist_kap_scraper); yanıt yoksa boş liste döner
+        for item in self._kap().fetch_disclosures(clean_ticker, max_items=max_items):
+            title = f"{item['type']} - {item['title']}" + (f": {item['summary']}" if item["summary"] else "")
+            disclosures.append({
+                "title": title,
+                "source": "KAP Doğrudan Bildirim",
+                "published": item["date"],
+                "summary": item["summary"] or item["title"],
+                "url": item["url"],
+                "is_official_kap": True
+            })
 
         # 2. Eğer KAP API doğrudan yanıt vermezse, Google News TR KAP aramasıyla yedekle
         if not disclosures:
@@ -140,6 +126,12 @@ class BistKapCrawler:
         disclosures = filter_recent_news(disclosures, datetime.now(timezone.utc))[:max_items]
 
         return disclosures
+
+    def _kap(self):
+        if self._kap_scraper is None:
+            from bist_quant.bist_kap_scraper import BistKapScraper
+            self._kap_scraper = BistKapScraper()
+        return self._kap_scraper
 
     def _fetch_google_news_kap_fallback(self, clean_ticker: str, max_items: int = 15, company_name: str | None = None) -> List[Dict[str, Any]]:
         """KAP doğrudan API'si kapalı olduğunda taze Google News KAP filtrelerini çeker."""

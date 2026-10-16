@@ -14,29 +14,87 @@
 import sys
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # Windows konsol Unicode uyumluluğu
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='ignore')
 
-KAP_API_URL = "https://www.kap.org.tr/tr/api/disclosures"
-REQUEST_TIMEOUT_SECONDS = 6
+# kap.org.tr'nin kendi "Detaylı Sorgulama" sayfasının kullandığı uç noktalar (Ekim 2026'da tarayıcıdan izlendi).
+# Eski GET /tr/api/disclosures uç noktası yanıt vermiyor.
+KAP_BASE_URL = "https://www.kap.org.tr"
+KAP_SEARCH_URL = f"{KAP_BASE_URL}/tr/api/search/smart"
+KAP_DISCLOSURES_URL = f"{KAP_BASE_URL}/tr/api/disclosure/members/byCriteria"
+KAP_DISCLOSURE_PAGE = f"{KAP_BASE_URL}/tr/Bildirim/{{index}}"
+KAP_PUBLISH_FORMAT = "%d.%m.%Y %H:%M:%S"
+ISTANBUL_TZ = timezone(timedelta(hours=3))
+LISTED_COMPANIES = "IGS"  # İşlem gören şirketler
+SEARCH_COMPANY_TYPE = "C"
+LOOKBACK_DAYS = 30
+# DKB: Borsa İstanbul, SPK gibi başka kurumların hisse hakkındaki duyuruları (devre kesici, işlem yasağı vb.).
+# Şirketin kendi açıklaması değildir; anahtar kelime duygu skoru verilmez.
+OTHER_INSTITUTION_CLASS = "DKB"
+OTHER_INSTITUTION_SENTIMENT = "NÖTR / DİĞER KURUM DUYURUSU"
+REQUEST_TIMEOUT_SECONDS = 10
 NO_DATA = "VERİ YOK"
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
+_CODE_FOLD = str.maketrans("ıİ", "iI")
+
+
+def _fold_code(code: str) -> str:
+    """KAP kodları küçük harf ve noktasız ı ile döner ('bımas'); hisse koduyla karşılaştırmak için sadeleştirir."""
+    return str(code).translate(_CODE_FOLD).strip().upper()
+
+
+def match_member_oid(search_results, ticker: str) -> str | None:
+    """search/smart yanıtında hisse koduyla birebir eşleşen şirketin KAP kimliği; sıralamaya güvenilmez."""
+    target = _fold_code(ticker)
+    for category in search_results or []:
+        for result in category.get("results", []):
+            if result.get("searchType") != SEARCH_COMPANY_TYPE:
+                continue
+            codes = {_fold_code(c) for c in str(result.get("cmpOrFundCode") or "").split(",")}
+            if target in codes:
+                return result.get("memberOrFundOid")
+    return None
+
+
+def build_criteria(from_date: str, to_date: str, member_oid: str) -> dict:
+    """Detaylı Sorgulama formunun gönderdiği gövde; yalnızca tarih aralığı ve şirket doldurulur."""
+    return {
+        "fromDate": from_date, "toDate": to_date, "memberType": LISTED_COMPANIES,
+        "mkkMemberOidList": [member_oid], "inactiveMkkMemberOidList": [], "disclosureClass": "",
+        "subjectList": [], "isLate": "", "mainSector": "", "sector": "", "subSector": "",
+        "marketOid": "", "index": "", "bdkReview": "", "bdkMemberOidList": [], "year": "",
+        "term": "", "ruleType": "", "period": "", "fromSrc": False, "srcCategory": "",
+        "disclosureIndexList": [],
+    }
+
+
+def parse_publish_date(raw: str) -> datetime | None:
+    """KAP yayım zamanı ('16.10.2026 09:35:22', İstanbul saati); okunamazsa None."""
+    try:
+        return datetime.strptime(str(raw).strip(), KAP_PUBLISH_FORMAT).replace(tzinfo=ISTANBUL_TZ)
+    except ValueError:
+        return None
+
+
 class BistKapScraper:
-    def __init__(self, cache_ttl_seconds: int = 600):
+    def __init__(self, cache_ttl_seconds: int = 600, lookback_days: int = LOOKBACK_DAYS):
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": USER_AGENT,
             "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": "https://www.kap.org.tr/"
+            "Accept-Language": "tr",
+            "Content-Type": "application/json",
+            "Referer": f"{KAP_BASE_URL}/tr/bildirim-sorgu"
         })
         self.cache_ttl = cache_ttl_seconds
+        self.lookback_days = lookback_days
         self._cache = {}
+        self._member_oids = {}
 
     def _clean_ticker(self, ticker: str) -> str:
         """'BIMAS.IS' veya 'BIMAS' formatını 'BIMAS' haline getirir."""
@@ -62,40 +120,69 @@ class BistKapScraper:
         self._cache[cache_key] = (result, now + self.cache_ttl)
         return result
 
-    def _fetch_from_source(self, clean_t: str, max_items: int) -> tuple[list[dict], bool]:
+    def _post_json(self, url: str, body: dict, clean_t: str):
+        """POST atar; HTTP hatası, zaman aşımı veya JSON olmayan yanıtta None döner."""
         try:
-            res = self.session.get(f"{KAP_API_URL}?stockCode={clean_t}", timeout=REQUEST_TIMEOUT_SECONDS)
+            res = self.session.post(url, json=body, timeout=REQUEST_TIMEOUT_SECONDS)
             if res.status_code != 200:
                 print(f"[UYARI] KAP kaynağı {clean_t} için HTTP {res.status_code} döndürdü.")
-                return [], False
-            raw_data = res.json()
+                return None
+            return res.json()
         except Exception as e:
             print(f"[UYARI] KAP bildirimi alınamadı ({clean_t}): {e}")
+            return None
+
+    def _member_oid(self, clean_t: str) -> str | None:
+        if clean_t not in self._member_oids:
+            results = self._post_json(KAP_SEARCH_URL, {"keyword": clean_t}, clean_t)
+            if results is None:
+                return None  # bağlantı hatası önbelleğe alınmaz
+            oid = match_member_oid(results, clean_t)
+            if oid is None:
+                print(f"[UYARI] {clean_t} KAP şirket aramasında bulunamadı.")
+            self._member_oids[clean_t] = oid
+        return self._member_oids[clean_t]
+
+    def _fetch_from_source(self, clean_t: str, max_items: int) -> tuple[list[dict], bool]:
+        member_oid = self._member_oid(clean_t)
+        if member_oid is None:
             return [], False
 
-        if isinstance(raw_data, dict):
-            raw_data = raw_data.get("disclosures", [])
+        today = datetime.now(ISTANBUL_TZ).date()
+        body = build_criteria((today - timedelta(days=self.lookback_days)).isoformat(), today.isoformat(), member_oid)
+        raw_data = self._post_json(KAP_DISCLOSURES_URL, body, clean_t)
         if not isinstance(raw_data, list):
-            print(f"[UYARI] KAP kaynağı {clean_t} için beklenmeyen biçimde yanıt verdi.")
+            if raw_data is not None:
+                print(f"[UYARI] KAP kaynağı {clean_t} için beklenmeyen biçimde yanıt verdi.")
             return [], False
 
-        return [self._parse_api_item(item, clean_t) for item in raw_data[:max_items]], True
+        items = [self._parse_api_item(item, clean_t) for item in raw_data]
+        oldest = datetime.min.replace(tzinfo=ISTANBUL_TZ)
+        items.sort(key=lambda d: parse_publish_date(d["raw_date"]) or oldest, reverse=True)
+        return items[:max_items], True
 
     def _parse_api_item(self, item: dict, ticker: str) -> dict:
         """KAP JSON bildirimini ayıklar ve anahtar kelime duygu skorunu atar."""
-        title = item.get("title", item.get("disclosureTitle", "Özel Durum Açıklaması"))
-        summary = item.get("summary", item.get("disclosureSummary", ""))
-        publish_date = item.get("publishDate", item.get("ruleName", "Bugün"))
-        disc_type = item.get("disclosureType", "Genel")
+        title = item.get("subject") or "Özel Durum Açıklaması"
+        summary = item.get("summary") or ""
+        raw_date = item.get("publishDate", "")
+        moment = parse_publish_date(raw_date)
+        index = item.get("disclosureIndex")
 
-        sentiment, impact, score = self._classify_sentiment(title + " " + summary)
+        disclosure_class = item.get("disclosureClass") or "Genel"
+        if disclosure_class == OTHER_INSTITUTION_CLASS:
+            sentiment, impact, score = OTHER_INSTITUTION_SENTIMENT, "NEUTRAL", 0.0
+        else:
+            sentiment, impact, score = self._classify_sentiment(title + " " + summary)
 
         return {
             "ticker": ticker,
             "title": title,
-            "summary": summary,
-            "date": publish_date,
-            "type": disc_type,
+            "summary": summary.strip(),
+            "date": moment.isoformat() if moment else raw_date,
+            "raw_date": raw_date,
+            "type": disclosure_class,
+            "url": KAP_DISCLOSURE_PAGE.format(index=index) if index is not None else None,
             "sentiment": sentiment,
             "impact_label": impact,
             "sentiment_score": score

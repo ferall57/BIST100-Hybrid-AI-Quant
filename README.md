@@ -154,7 +154,7 @@ Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 | **Endeks kapısı** | XU100'ün SMA50, EMA21, RSI ve ADX değerlerinden piyasa rejimi çıkarır | Çalışıyor; komiteye yalnızca bağlam bilgisi olarak verilir. Backtest'te giriş filtresi olarak 24 ve 36 ayda sonucu kötüleştirdi |
 | **Para akışı göstergeleri** | Yalnızca fiyat-hacim verisinden CMF, MFI, VWAP ve bileşik skor | Çalışıyor; **kurum bazlı veri içermez**; backtest'te tutarlı katkı göstermedi |
 | **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
-| **KAP bildirimleri** | `kap.org.tr` uç noktasını sorgular; duyarlılık motoru Google News RSS'e düşer | KAP uç noktası 7 Ekim 2026 denemesinde yanıt vermedi; bu durumda "VERİ YOK" bildirilir |
+| **KAP bildirimleri** | KAP'ın kendi bildirim sorgusunu kullanır (şirket kimliği `search/smart`, bildirimler `disclosure/members/byCriteria`, son 30 gün); KAP yanıt vermezse duyarlılık motoru Google News RSS'e düşer | Çalışıyor (16 Ekim 2026, hisse başına ~0,1 sn). Ulaşılamazsa "VERİ YOK" bildirilir. Diğer kurum duyuruları (DKB) listelenir ama duygu skoru almaz |
 | **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; 18 kararın isabeti ölçüldü, örneklem bir sonuç için çok küçük |
 | **Deterministik veto** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor; ölçümde devrede olduğu günler daha kötü getiri vermedi. Endeks rejimine dayalı veto, ölçüm sonucunda kaldırıldı |
 | **Karar hafızası** | Geçmiş komite kararlarını ve sonradan gerçekleşen getiriyi saklar, sonraki analize özet olarak verir | Çalışıyor |
