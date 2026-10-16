@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 
-from bist_quant.bist_kap_crawler import filter_recent_news
+import pytest
+
+from bist_quant import bist_kap_crawler
+from bist_quant.bist_kap_crawler import BistKapCrawler, filter_recent_news, fold_turkish, is_relevant_headline, name_phrase
 from bist_quant.bist_kap_scraper import NO_DATA, BistKapScraper
 from bist_quant.bist_sentiment import format_news_line
 
@@ -93,6 +96,59 @@ def test_news_with_unreadable_date_is_kept_last_with_unknown_age():
 def test_news_line_shows_age_before_the_headline():
     assert format_news_line({"title": "Başlık", "source": "Kaynak", "age_days": 3}) == "- [3 gün önce] (Kaynak) Başlık"
     assert "yaşı bilinmiyor" in format_news_line({"title": "Başlık", "source": "Kaynak", "age_days": None})
+
+
+def test_turkish_text_is_folded_for_matching():
+    assert fold_turkish("Türk Hava Yolları İŞ Bankası, Koç!") == "turk hava yollari is bankasi koc"
+
+
+@pytest.mark.parametrize("name, phrase", [
+    ("Turk Hava Yollari Anonim Ortakligi", "turk hava"),
+    ("Koç Holding A.Ş.", "koc holding"),
+    ("Aselsan Elektronik Sanayi ve Ticaret A.S.", "aselsan elektronik"),
+    ("BIMAS", "bimas"),
+    (None, None),
+    ("", None),
+])
+def test_company_name_is_reduced_to_a_distinctive_phrase(name, phrase):
+    assert name_phrase(name) == phrase
+
+
+def test_headline_is_relevant_when_it_names_the_ticker_or_the_company():
+    assert is_relevant_headline("TÜRK HAVA YOLLARI (THYAO) 05 Ekim Günlük Teknik Analiz", "THYAO", "turk hava")
+    assert is_relevant_headline("İş Yatırım İşlemleri: ASELS, ASTOR, THYAO Takip Edildi", "THYAO", None)
+    assert is_relevant_headline("Türk Hava Yolları, CFM ile mutabakat imzaladı", "THYAO", "turk hava")
+
+
+def test_headline_without_ticker_or_company_is_not_relevant():
+    assert not is_relevant_headline("Yurtdışına 3 milyarlık transfer!", "THYAO", "turk hava")
+    assert not is_relevant_headline("Borsa güne yükselişle başladı", "THYAO", "turk hava")
+    assert not is_relevant_headline("THYAOX diye bir kod yok", "THYAO", None)
+
+
+def _rss(*titles):
+    published = (datetime.now(timezone.utc)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+    items = "".join(f"<item><title>{t} - Kaynak</title><pubDate>{published}</pubDate></item>" for t in titles)
+    return f"<rss><channel>{items}</channel></rss>".encode("utf-8")
+
+
+def test_news_search_keeps_only_headlines_about_the_company(monkeypatch):
+    requested = []
+
+    def fake_get(url, *args, **kwargs):
+        requested.append(url)
+        if "kap.org.tr" in url:
+            return _Response(status_code=503, payload=[])
+        response = _Response(status_code=200)
+        response.content = _rss("THYAO yeni rekor kırdı", "Yurtdışına 3 milyarlık transfer!", "Türk Hava Yolları CFM ile anlaştı")
+        return response
+
+    monkeypatch.setattr(bist_kap_crawler.requests, "get", fake_get)
+
+    items = BistKapCrawler().fetch_disclosures_direct("THYAO.IS", company_name="Turk Hava Yollari Anonim Ortakligi")
+
+    assert [item["title"] for item in items] == ["THYAO yeni rekor kırdı", "Türk Hava Yolları CFM ile anlaştı"]
+    assert "%22THYAO%22" in requested[-1] and "turk%20hava" in requested[-1]
 
 
 def test_real_disclosures_are_listed():

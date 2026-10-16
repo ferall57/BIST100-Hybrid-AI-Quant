@@ -74,11 +74,11 @@ class BistSentimentEngine:
         from bist_quant.bist_kap_crawler import BistKapCrawler
         self.kap_crawler = BistKapCrawler()
 
-    def fetch_live_news(self, ticker: str, limit: int = 25) -> list[dict]:
+    def fetch_live_news(self, ticker: str, limit: int = 25, company_name: str | None = None) -> list[dict]:
         """
         KAP Doğrudan Bildirimleri ve Google News TR akışından hisse için en güncel haberleri çeker.
         """
-        raw_disclosures = self.kap_crawler.fetch_disclosures_direct(ticker, max_items=limit)
+        raw_disclosures = self.kap_crawler.fetch_disclosures_direct(ticker, max_items=limit, company_name=company_name)
         news_items = []
         for item in raw_disclosures:
             news_items.append({
@@ -90,14 +90,14 @@ class BistSentimentEngine:
             })
         return news_items
 
-    def analyze_sentiment(self, ticker: str, news_items: list[dict] = None) -> dict:
+    def analyze_sentiment(self, ticker: str, news_items: list[dict] = None, company_name: str | None = None) -> dict:
         """
         Hisseye ait haberleri finansal NLP süzgecinden geçirir.
         Duyarlılık Skoru (-1.0 ile +1.0), Etki Şiddeti (0.0 ile 1.0) ve Katalizör Tespiti üretir.
         """
         clean_ticker = ticker.replace(".IS", "").strip().upper()
         if news_items is None:
-            news_items = self.fetch_live_news(ticker, limit=20)
+            news_items = self.fetch_live_news(ticker, limit=20, company_name=company_name)
 
         if not news_items:
             return {

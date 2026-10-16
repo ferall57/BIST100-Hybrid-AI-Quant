@@ -330,7 +330,7 @@ class BistHybridCommittee:
         # 2. Aşama: Analistler (Temel, NLP Sentiment, AKD & Teknik-Makro)
         print(f"💼 [AŞAMA 2/4] Temel, NLP Sentiment, AKD Para Akışı, ICT Price Action ve Teknik Stratejist Ajanlar Rapor Yazıyor...")
         
-        sentiment_data = self.sentiment_engine.analyze_sentiment(ticker)
+        sentiment_data = self.sentiment_engine.analyze_sentiment(ticker, company_name=company_name)
         
         live_news = f"""<untrusted_news_feed>
 * **NLP Duyarlılık Skoru (Sentiment):** {sentiment_data.get('sentiment_score', 0.0):+.2f} ({sentiment_data.get('sentiment_label', 'NÖTR')}) | Etki Şiddeti: %{sentiment_data.get('impact_intensity', 0.0)*100:.0f}

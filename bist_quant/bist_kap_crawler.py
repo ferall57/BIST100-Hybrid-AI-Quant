@@ -7,6 +7,7 @@ en taze ve filtrelenmiş şekilde çeker.
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -17,6 +18,34 @@ from typing import List, Dict, Any
 
 NEWS_MAX_AGE_DAYS = 14
 SECONDS_PER_DAY = 86400.0
+
+
+TURKISH_FOLD = str.maketrans("ıİşŞğĞüÜöÖçÇâÂîÎûÛ", "iissgguuooccaaiiuu")
+# Şirket unvanındaki hukuki ekler ayırt edici değildir; haber başlıklarında da geçmez.
+LEGAL_NAME_WORDS = frozenset({"anonim", "ortakligi", "sirketi", "as", "a", "s", "tas", "t", "sanayi", "ve", "ticaret", "inc", "corp"})
+NAME_PHRASE_WORDS = 2
+
+
+def fold_turkish(text: str) -> str:
+    """Eşleştirme için metni sadeleştirir: Türkçe karakterleri ASCII'ye indirir, küçültür, noktalamayı atar."""
+    folded = str(text).translate(TURKISH_FOLD).lower()
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", folded).split())
+
+
+def name_phrase(company_name: str | None) -> str | None:
+    """Şirket unvanının ilk ayırt edici kelimeleri ('Turk Hava Yollari A.O.' -> 'turk hava'); unvan yoksa None."""
+    if not company_name:
+        return None
+    words = [word for word in fold_turkish(company_name).split() if word not in LEGAL_NAME_WORDS]
+    return " ".join(words[:NAME_PHRASE_WORDS]) or None
+
+
+def is_relevant_headline(title: str, clean_ticker: str, company_phrase: str | None) -> bool:
+    """Başlıkta hisse kodu (tam kelime olarak) ya da şirket adı geçiyorsa haber o hisseyle ilgilidir."""
+    folded = fold_turkish(title)
+    if re.search(rf"\b{re.escape(clean_ticker.lower())}\b", folded):
+        return True
+    return bool(company_phrase) and company_phrase in folded
 
 
 def published_at(item: dict) -> datetime | None:
@@ -69,7 +98,7 @@ class BistKapCrawler:
             "Referer": "https://www.kap.org.tr/"
         }
 
-    def fetch_disclosures_direct(self, ticker: str, max_items: int = 15) -> List[Dict[str, Any]]:
+    def fetch_disclosures_direct(self, ticker: str, max_items: int = 15, company_name: str | None = None) -> List[Dict[str, Any]]:
         """
         KAP resmi arama ve bildirim API'sine doğrudan bağlanarak hisseye ait en güncel bildirimleri çeker.
         """
@@ -105,19 +134,21 @@ class BistKapCrawler:
 
         # 2. Eğer KAP API doğrudan yanıt vermezse, Google News TR KAP aramasıyla yedekle
         if not disclosures:
-            disclosures = self._fetch_google_news_kap_fallback(clean_ticker, max_items=max_items)
+            disclosures = self._fetch_google_news_kap_fallback(clean_ticker, max_items=max_items, company_name=company_name)
 
         # Bayat haber güncel olay gibi sunulmasın: yalnızca son NEWS_MAX_AGE_DAYS gün, en yeni önce
         disclosures = filter_recent_news(disclosures, datetime.now(timezone.utc))[:max_items]
 
         return disclosures
 
-    def _fetch_google_news_kap_fallback(self, clean_ticker: str, max_items: int = 15) -> List[Dict[str, Any]]:
+    def _fetch_google_news_kap_fallback(self, clean_ticker: str, max_items: int = 15, company_name: str | None = None) -> List[Dict[str, Any]]:
         """KAP doğrudan API'si kapalı olduğunda taze Google News KAP filtrelerini çeker."""
         import urllib.parse
         import xml.etree.ElementTree as ET
 
-        query = f"{clean_ticker} KAP OR hisse OR borsa"
+        # Eski sorgu ("KOD KAP OR hisse OR borsa") hisseyle ilgisiz borsa haberlerini de getiriyordu
+        company_phrase = name_phrase(company_name)
+        query = f'"{clean_ticker}"' + (f' OR "{company_phrase}"' if company_phrase else "")
         encoded_query = urllib.parse.quote(query)
         rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=tr&gl=TR&ceid=TR:tr"
 
@@ -148,7 +179,11 @@ class BistKapCrawler:
         except Exception:
             pass
 
-        return news_items
+        relevant = [item for item in news_items if is_relevant_headline(item["title"], clean_ticker, company_phrase)]
+        if len(relevant) < len(news_items):
+            print(f"[BİLGİ] {clean_ticker}: {len(news_items)} başlıktan {len(news_items) - len(relevant)} tanesi "
+                  f"hisse kodu veya şirket adı geçmediği için elendi.")
+        return relevant
 
 
 if __name__ == "__main__":
