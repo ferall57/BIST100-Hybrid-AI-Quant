@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-233-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-237-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -135,9 +135,8 @@ flowchart TD
     YF --> KRONOS & ECON & ICT & GATE & FLOW
     NEWS --> ANALIST
     KRONOS & ECON & ICT & GATE & FLOW --> ANALIST --> DEBATE --> PM
-    PM --> VETO{"Deterministik veto"}
-    VETO -->|tetiklendi| TUT["Karar TUT olarak kaydedilir"]
-    VETO -->|geçti| RAPOR["Komite raporu (Markdown)"]
+    ECON & FLOW --> RISK["MC + para çıkışı risk notu (bağlam)"] --> PM
+    PM --> RAPOR["Komite raporu (Markdown) ve hafıza kaydı"]
 ```
 
 Sistem emir göndermez; çıktısı rapor ve sinyaldir.
@@ -156,7 +155,7 @@ Sistem emir göndermez; çıktısı rapor ve sinyaldir.
 | **Aracı kurum dağılımı (AKD)** | `bist_data/akd/<HİSSE>_akd.csv` dosyası sağlanırsa ilk 5 alıcı/satıcı payını okur | Veri kaynağı dahil değil; dosya yoksa "VERİ YOK" |
 | **KAP bildirimleri** | KAP'ın kendi bildirim sorgusunu kullanır (şirket kimliği `search/smart`, bildirimler `disclosure/members/byCriteria`, son 30 gün); KAP yanıt vermezse duyarlılık motoru Google News RSS'e düşer | Çalışıyor (16 Ekim 2026, hisse başına ~0,1 sn). Ulaşılamazsa "VERİ YOK" bildirilir. Diğer kurum duyuruları (DKB) listelenir ama duygu skoru almaz |
 | **Komite** | Temel analist, teknik analist, boğa/ayı (2 tur) ve portföy müdürü promptlarıyla Gemini çağrıları | Çalışıyor; 18 kararın isabeti ölçüldü, örneklem bir sonuç için çok küçük |
-| **Deterministik veto** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa alım kararını TUT'a çevirir | Çalışıyor; ölçümde devrede olduğu günler daha kötü getiri vermedi. Endeks rejimine dayalı veto, ölçüm sonucunda kaldırıldı |
+| **MC + para çıkışı risk notu** | Monte Carlo kazanma olasılığı %38'in altında **ve** CMF −0,12'nin altındaysa portföy müdürüne ölçüm sonucuyla birlikte risk notu olarak verilir; kararı değiştirmez | Çalışıyor. Eskiden alımı TUT'a çeviren veto idi; ölçümde koşulun sağlandığı günler daha kötü getiri vermediği için bağlam bilgisine çevrildi. Endeks rejimine dayalı veto da aynı nedenle kaldırıldı |
 | **Karar hafızası** | Geçmiş komite kararlarını ve sonradan gerçekleşen getiriyi saklar, sonraki analize özet olarak verir | Çalışıyor |
 | **İşlem hafızası** | Kullanıcının kaydettiği işlemleri ve çıkarılan dersleri saklar | Boş başlar; kayıt yoksa "kayıt yok" |
 | **VİOP hesapları** | Taşıma maliyetiyle teorik vadeli fiyat, Black-Scholes-Merton primi ve Greeks, pozisyon büyüklüğü | Çalışıyor; teminat oranları kodda sabit yaklaşık değerlerdir, Takasbank'ın güncel oranlarıyla doğrulanmadı |
@@ -198,7 +197,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 233 test
+python -m pytest tests          # 237 test
 ```
 
 ---
@@ -274,7 +273,8 @@ python main.py --compare-models bist30
 - **Bileşenler katkı göstermedi.** ICT kuralları ve para akışı skoru backtest'te tutarlı bir iyileşme sağlamadı;
   XU100 endeks kapısı uzun dönemlerde sonucu kötüleştirdi. Bu ölçümün ardından endeks rejimine dayalı veto
   kaldırıldı; rejim, ICT ve para akışı komiteye bağlam bilgisi olarak girmeye devam ediyor. MC + para çıkışı vetosu
-  da devrede olduğu günlerde daha kötü getiri öngörmedi; kod içinde hâlâ alım kararını TUT'a çeviriyor.
+  da devrede olduğu günlerde daha kötü getiri öngörmedi ve bağlam bilgisine çevrildi. Komitenin kararını programatik
+  olarak değiştiren bir kural kalmadı; yalnızca okunamayan karar TUT olarak kaydedilir.
 - **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
   bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
 - **Hisse listesi resmi BIST100 bileşenleri değil.** `bist100` evreni 111 sembollük geniş bir listedir; endeks
@@ -321,7 +321,7 @@ KRONOS/
 │   ├── bist_duckdb_engine.py          # DuckDB aktarımı ve ön eleme
 │   └── market_assumptions.py          # Faiz varsayımları (.env)
 ├── hybrid_agents/
-│   ├── bist_committee.py              # Komite orkestrasyonu ve veto
+│   ├── bist_committee.py              # Komite orkestrasyonu ve risk notu
 │   ├── verdict_parser.py              # Karar satırının ayrıştırılması
 │   ├── prompts.py                     # Ajan promptları
 │   ├── context_firewall.py            # Mum geçmişinin özetlenmesi

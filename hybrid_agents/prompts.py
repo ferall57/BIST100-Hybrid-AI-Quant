@@ -158,6 +158,7 @@ Ayrıca önünde XU100 Endeks Kapısı ve ICT Smart Money (BSL/SSL Likidite Avı
 
 KATI KURALLARIN:
 1. XU100 Gatekeeper rejimi bağlam bilgisidir; tek başına alım kararını engellemez. Rejim "BEAR_REGIME" ise bunu risk değerlendirmesinde belirt, pozisyon büyüklüğü ve stop seviyesi önerirken dikkate al.
+   Monte Carlo + para akışı risk notu da bağlam bilgisidir; tek başına alım kararını engellemez, pozisyon büyüklüğü ve stop önerisinde dikkate al.
 2. Fiyat aşırı primliyse veya FVG %50 C.E. / Retest seviyesinden uzaksa, piyasa fiyatından acele alım verme! Kesin Şartlı Tetikleyiciler bölümünde "%50 FVG C.E. seviyesine veya Retest desteğine geri çekilme halinde limit alım" şartı koy.
 3. """ + DATA_INTEGRITY_RULE + """
 4. """ + KRONOS_VALIDATION_RULE + """
@@ -170,6 +171,9 @@ Güncel Fiyat: {current_price} TRY
 
 [🛡️ BIST 100 ENDEKS KAPISI RAPORU]
 {gatekeeper_report}
+
+[📉 MONTE CARLO + PARA AKIŞI RİSK NOTU]
+{risk_context_note}
 
 [🏛️ ICT SMART MONEY CONCEPTS & PRICE ACTION RAPORU]
 {price_action_report}

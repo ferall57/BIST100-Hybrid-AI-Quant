@@ -82,20 +82,37 @@ def band_upper(band: tuple[float, float] | None) -> float | None:
 MC_VETO_MAX_WIN_PROBABILITY_PCT = 38.0
 CMF_VETO_MAX = -0.12
 
-def risk_veto_reason(parsed_verdict: str, mc_data: dict, akd_data: dict) -> str | None:
+def _risk_inputs(mc_data: dict, akd_data: dict) -> tuple:
+    """MC olasılığı ve CMF; simülasyon hata verdiyse ("error" alanı) varsayılan değer ölçüm sayılmaz, None döner."""
+    win_probability = None if mc_data.get("error") else mc_data.get("prob_positive")
+    return win_probability, akd_data.get("cmf_20")
+
+def risk_condition_met(mc_data: dict, akd_data: dict) -> bool:
+    """Eski veto koşulu: Monte Carlo kazanma olasılığı düşük VE hacim tabanlı para çıkışı var. Veri yoksa False."""
+    win_probability, money_flow = _risk_inputs(mc_data, akd_data)
+    if win_probability is None or money_flow is None:
+        return False
+    return win_probability < MC_VETO_MAX_WIN_PROBABILITY_PCT and money_flow < CMF_VETO_MAX
+
+def risk_context_note(mc_data: dict, akd_data: dict) -> str:
     """
-    Alım kararını programatik olarak TUT'a çeviren tek kural: Monte Carlo kazanma olasılığı düşük VE hacim
-    tabanlı para çıkışı var. Veto gerekçesini döndürür; veto yoksa None. Ayrıştırılamayan karar alım gibi ele alınır.
-    XU100 endeks rejimi bu kurala girmez: backtest ölçümünde alım yasağı getiriyi artırmadı, bağlam bilgisidir.
+    Monte Carlo + para çıkışı koşulunu komiteye bağlam bilgisi olarak anlatır; kararı programatik olarak değiştirmez.
+    Ölçüm (--veto-study, BIST30, 24 ay): koşulun sağlandığı günlerin ileri getirisi daha kötü değildi.
     """
-    if parsed_verdict not in (VERDICT_BUY, VERDICT_UNKNOWN):
-        return None
-    win_probability = mc_data.get("prob_positive", 50.0)
-    money_flow = akd_data.get("cmf_20", 0.0)
-    if win_probability < MC_VETO_MAX_WIN_PROBABILITY_PCT and money_flow < CMF_VETO_MAX:
-        return (f"Merton MC Kazanma Olasılığı (%{win_probability:.1f} < %{MC_VETO_MAX_WIN_PROBABILITY_PCT:.0f}) "
-                f"ve CMF Para Çıkışı ({money_flow:.3f})")
-    return None
+    win_probability, money_flow = _risk_inputs(mc_data, akd_data)
+    if win_probability is None or money_flow is None:
+        return "Monte Carlo veya CMF verisi: VERİ YOK. Bu risk notu hakkında çıkarım yapmayınız."
+    values = f"Merton MC 15 günlük yükseliş olasılığı %{win_probability:.1f}, CMF-20 {money_flow:+.3f}."
+    if not risk_condition_met(mc_data, akd_data):
+        return f"{values} Düşük olasılık + para çıkışı koşulu (MC < %{MC_VETO_MAX_WIN_PROBABILITY_PCT:.0f} ve CMF < {CMF_VETO_MAX}) sağlanmıyor."
+    return (f"{values} Düşük olasılık + para çıkışı koşulu (MC < %{MC_VETO_MAX_WIN_PROBABILITY_PCT:.0f} ve CMF < {CMF_VETO_MAX}) "
+            "sağlanıyor. Ölçüm (BIST30, 24 ay): bu koşulun sağlandığı günlerde sonraki 5-15 günün getirisi daha kötü değil, "
+            "ortalamada daha yüksekti; XU100'e göre fark küçük ve hisseden hisseye tutarsızdı. Tek başına alımı engellemez; "
+            "pozisyon büyüklüğü ve stop önerisinde risk bilgisi olarak kullan.")
+
+def final_verdict_type(parsed_verdict: str) -> str:
+    """Portföy müdürünün kararı olduğu gibi kaydedilir; yalnızca okunamayan karar TUT sayılır."""
+    return VERDICT_HOLD if parsed_verdict == VERDICT_UNKNOWN else parsed_verdict
 
 def pick_live_price(last_price, previous_close, fallback: float) -> float:
     """Canlı fiyat geçerliyse onu, değilse önceki kapanışı, o da yoksa CSV kapanışını döndürür."""
@@ -419,8 +436,12 @@ class BistHybridCommittee:
         
         # 4. Aşama: Portföy Yönetim Müdürü Hakem Kararı
         print(f"🏆 [AŞAMA 4/4] Baş Portföy Müdürü (Executive Manager) 2 Turlu Münazarayı Yargılıyor...")
+        # Monte Carlo + para çıkışı koşulu kararı değiştirmez; portföy müdürüne bağlam bilgisi olarak verilir.
+        mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
+        akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
         prompt_mgr = BIST_PORTFOLIO_MANAGER_PROMPT.format(
             ticker=ticker,
+            risk_context_note=risk_context_note(mc_data, akd_data),
             current_price=current_price,
             gatekeeper_report=gatekeeper_report,
             price_action_report=price_action_report,
@@ -436,22 +457,7 @@ class BistHybridCommittee:
         res_mgr = self.llm.invoke(prompt_mgr)
         executive_verdict = extract_text(res_mgr)
         
-        # 🛡️ DETERMINİSTİK RİSK VETOSU (MONTE CARLO + PARA ÇIKIŞI)
-        # Karar tek sefer, veto uyarısı metne eklenmeden önce ayrıştırılır.
-        # XU100 endeks rejimi kararı programatik olarak değiştirmez; komiteye bağlam bilgisi olarak sunulur.
         parsed_verdict = parse_verdict_type(executive_verdict)
-
-
-        mc_data = self.econometric_engine.run_monte_carlo_simulation(df, days=forecast_days, num_sims=1000) if 'df' in locals() else {}
-        akd_data = self.akd_engine.analyze_akd_profile(ticker, df) if 'df' in locals() else {}
-        
-        veto_reason = risk_veto_reason(parsed_verdict, mc_data, akd_data)
-        veto_triggered = veto_reason is not None
-        if veto_triggered:
-            executive_verdict = f"""> [!WARNING]
-> 🛡️ **DETERMİNİSTİK RİSK VETOSU DEVREDE:**
-> Yapay zeka delegasyonu yükseliş yönlü tezler sunsa da; **matematiksel risk eşikleri** ({veto_reason}) nedeniyle komite kararı programatik olarak **"TUT / GÖZLEMLE (Beklemede Kal)"** seviyesine revize edilmiştir.
-""" + executive_verdict
 
         # 5. VİOP Türev & Dinamik SPAN Teminat & BSM Greeks Hesaplaması
         contract_code = self.viop_engine.get_contract_code(ticker)
@@ -470,7 +476,7 @@ class BistHybridCommittee:
 
 
 
-        verdict_type = VERDICT_HOLD if veto_triggered or parsed_verdict == VERDICT_UNKNOWN else parsed_verdict
+        verdict_type = final_verdict_type(parsed_verdict)
 
         self.memory_engine.record_decision(
             ticker=ticker,

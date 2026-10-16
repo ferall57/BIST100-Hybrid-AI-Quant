@@ -91,3 +91,9 @@ def test_run_study_uses_only_data_up_to_each_point():
     first = rows[0]
     assert first["fwd_5"] == pytest.approx((stock.close[125] / stock.close[120] - 1) * 100)
     assert first["excess_5"] == pytest.approx(first["fwd_5"])
+
+
+def test_study_measures_the_same_condition_the_committee_reports():
+    from hybrid_agents.bist_committee import risk_condition_met
+    for prob, cmf in [(30.0, -0.2), (30.0, 0.0), (50.0, -0.2)]:
+        assert CONDITIONS["veto"](prob, cmf) == risk_condition_met({"prob_positive": prob}, {"cmf_20": cmf})

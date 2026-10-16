@@ -1,8 +1,9 @@
 """
 Monte Carlo + para çıkışı vetosunun geçmiş veride ölçülmesi.
 
-Canlı komite bir AL kararını, Merton MC'nin 15 günlük yükseliş olasılığı %38'in altında VE
-CMF-20 -0.12'nin altındaysa TUT'a çevirir (hybrid_agents.bist_committee.risk_veto_reason).
+Komite eskiden bir AL kararını, Merton MC'nin 15 günlük yükseliş olasılığı %38'in altında VE
+CMF-20 -0.12'nin altındaysa TUT'a çeviriyordu. Bu ölçümün ardından koşul bağlam bilgisine çevrildi
+(hybrid_agents.bist_committee.risk_condition_met / risk_context_note).
 Bu iki girdi yalnızca fiyat verisinden hesaplandığı için kural geçmişte yeniden oynatılabilir:
 
 - Her hissede, yalnızca o güne kadarki mumlar kullanılarak belirli aralıklarla MC olasılığı ve CMF hesaplanır.
@@ -28,9 +29,8 @@ from bist_quant.bist_downloader import RAW_DATA_DIR
 from hybrid_agents.bist_committee import (
     CMF_VETO_MAX,
     MC_VETO_MAX_WIN_PROBABILITY_PCT,
-    risk_veto_reason,
+    risk_condition_met,
 )
-from hybrid_agents.verdict_parser import VERDICT_BUY
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 REPORTS_DIR = os.path.join(ROOT_DIR, "outputs", "reports")
@@ -43,8 +43,7 @@ DEFAULT_STEP = 5
 TRADING_DAYS_PER_MONTH = 21
 
 CONDITIONS = {
-    "veto": lambda prob, cmf: risk_veto_reason(
-        VERDICT_BUY, {"prob_positive": prob}, {"cmf_20": cmf}) is not None,
+    "veto": lambda prob, cmf: risk_condition_met({"prob_positive": prob}, {"cmf_20": cmf}),
     "mc_low": lambda prob, cmf: prob < MC_VETO_MAX_WIN_PROBABILITY_PCT,
     "cmf_out": lambda prob, cmf: cmf < CMF_VETO_MAX,
 }

@@ -1,7 +1,17 @@
 import math
 
 from bist_quant.market_assumptions import POLICY_RATE_ENV
-from hybrid_agents.bist_committee import band_upper, describe_current_setup, pick_live_price, policy_rate_line, risk_veto_reason
+import hybrid_agents.bist_committee as committee
+from hybrid_agents.bist_committee import (
+    band_upper,
+    describe_current_setup,
+    final_verdict_type,
+    pick_live_price,
+    policy_rate_line,
+    risk_condition_met,
+    risk_context_note,
+)
+from hybrid_agents.prompts import BIST_PORTFOLIO_MANAGER_PROMPT
 from hybrid_agents.verdict_parser import VERDICT_BUY, VERDICT_HOLD, VERDICT_SELL, VERDICT_UNKNOWN
 
 
@@ -35,29 +45,49 @@ WEAK_ODDS = {"prob_positive": 30.0}
 OUTFLOW = {"cmf_20": -0.20}
 
 
-def test_risk_veto_fires_for_a_buy_when_odds_are_poor_and_money_is_leaving():
-    reason = risk_veto_reason(VERDICT_BUY, WEAK_ODDS, OUTFLOW)
-
-    assert reason is not None
-    assert "30.0" in reason and "-0.200" in reason
-
-
-def test_risk_veto_needs_both_conditions():
-    assert risk_veto_reason(VERDICT_BUY, WEAK_ODDS, {"cmf_20": 0.05}) is None
-    assert risk_veto_reason(VERDICT_BUY, {"prob_positive": 55.0}, OUTFLOW) is None
+def test_risk_condition_needs_both_poor_odds_and_outflow():
+    assert risk_condition_met(WEAK_ODDS, OUTFLOW) is True
+    assert risk_condition_met(WEAK_ODDS, {"cmf_20": 0.05}) is False
+    assert risk_condition_met({"prob_positive": 55.0}, OUTFLOW) is False
+    assert risk_condition_met({}, {}) is False
 
 
-def test_risk_veto_treats_an_unparsed_verdict_like_a_buy():
-    assert risk_veto_reason(VERDICT_UNKNOWN, WEAK_ODDS, OUTFLOW) is not None
+def test_risk_note_states_values_and_the_measurement_when_the_condition_holds():
+    note = risk_context_note(WEAK_ODDS, OUTFLOW)
+
+    assert "30.0" in note and "-0.200" in note
+    assert "sağlanıyor" in note
+    assert "daha kötü değil" in note
+    assert "engellemez" in note
 
 
-def test_risk_veto_never_overrides_hold_or_sell():
-    assert risk_veto_reason(VERDICT_HOLD, WEAK_ODDS, OUTFLOW) is None
-    assert risk_veto_reason(VERDICT_SELL, WEAK_ODDS, OUTFLOW) is None
+def test_risk_note_says_the_condition_does_not_hold():
+    note = risk_context_note({"prob_positive": 55.0}, {"cmf_20": 0.05})
+
+    assert "55.0" in note and "+0.050" in note
+    assert "sağlanmıyor" in note
 
 
-def test_risk_veto_does_not_fire_without_data():
-    assert risk_veto_reason(VERDICT_BUY, {}, {}) is None
+def test_risk_note_reports_missing_data_instead_of_defaults():
+    assert "VERİ YOK" in risk_context_note({}, {})
+    assert "50.0" not in risk_context_note({}, {})
+
+
+def test_no_programmatic_veto_remains():
+    assert not hasattr(committee, "risk_veto_reason")
+
+
+def test_final_verdict_keeps_the_managers_decision_and_holds_only_when_unreadable():
+    assert final_verdict_type(VERDICT_BUY) == VERDICT_BUY
+    assert final_verdict_type(VERDICT_SELL) == VERDICT_SELL
+    assert final_verdict_type(VERDICT_HOLD) == VERDICT_HOLD
+    assert final_verdict_type(VERDICT_UNKNOWN) == VERDICT_HOLD
+
+
+def test_manager_prompt_gets_the_risk_note_as_context():
+    assert "{risk_context_note}" in BIST_PORTFOLIO_MANAGER_PROMPT
+    rule = next(line for line in BIST_PORTFOLIO_MANAGER_PROMPT.splitlines() if "Monte Carlo + para akışı" in line)
+    assert "engellemez" in rule
 
 
 def test_index_regime_is_presented_as_context_not_as_a_ban(monkeypatch):
@@ -126,3 +156,12 @@ def test_missing_live_data_keeps_csv_close():
 
 def test_non_positive_prices_are_rejected():
     assert pick_live_price(last_price=0.0, previous_close=-1.0, fallback=11.0) == 11.0
+
+
+def test_failed_simulation_defaults_are_not_presented_as_measurements():
+    # run_monte_carlo_simulation hata durumunda prob_positive=50.0 varsayılanı ve "error" alanı döndürür.
+    failed_mc = {"prob_positive": 50.0, "error": "yetersiz veri"}
+
+    assert "VERİ YOK" in risk_context_note(failed_mc, OUTFLOW)
+    assert "50.0" not in risk_context_note(failed_mc, OUTFLOW)
+    assert risk_condition_met({"prob_positive": 30.0, "error": "x"}, OUTFLOW) is False
