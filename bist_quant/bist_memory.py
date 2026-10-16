@@ -33,6 +33,34 @@ def _round_or_none(value, digits: int = 2):
     """Komite raporundan okunamayan alanlar None kalır; yerine varsayılan sayı yazılmaz."""
     return None if value is None else round(value, digits)
 
+LONG_VERDICTS = ("AL", "BUY")
+SHORT_VERDICTS = ("SAT", "SELL", "SHORT")
+MIN_CONFIDENCE_PCT = 0
+MAX_CONFIDENCE_PCT = 100
+
+def _valid_confidence(confidence):
+    """0-100 dışındaki güven skoru kırpılmaz, eksik sayılır (419 gibi bir değer rapordaki bir hatadır)."""
+    if confidence is None or not MIN_CONFIDENCE_PCT <= confidence <= MAX_CONFIDENCE_PCT:
+        return None
+    return confidence
+
+def _directional_levels(verdict: str, spot_price: float, target_1w, target_15d, stop_loss) -> dict:
+    """
+    Karar yönüyle çelişen seviyeyi eksik sayar: AL için stop < spot < hedef, SAT için hedef < spot < stop.
+    Yanlış taraftaki seviyenin yerine yenisi uydurulmaz. TUT yön iddiası taşımadığı için olduğu gibi kalır.
+    """
+    if verdict in LONG_VERDICTS:
+        target_ok, stop_ok = (lambda t: t > spot_price), (lambda s: s < spot_price)
+    elif verdict in SHORT_VERDICTS:
+        target_ok, stop_ok = (lambda t: t < spot_price), (lambda s: s > spot_price)
+    else:
+        target_ok = stop_ok = lambda _: True
+    return {
+        "target_1w": _round_or_none(target_1w if target_1w is not None and target_ok(target_1w) else None),
+        "target_15d": _round_or_none(target_15d if target_15d is not None and target_ok(target_15d) else None),
+        "stop_loss": _round_or_none(stop_loss if stop_loss is not None and stop_ok(stop_loss) else None),
+    }
+
 class BistCommitteeMemory:
     """
     BIST Yapay Zeka Komitesi için Zaman ve Vade Duyarlı Kalıcı Hafıza Yöneticisi.
@@ -105,6 +133,10 @@ class BistCommitteeMemory:
         if forecast_date is None:
             forecast_date = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
+        clean_verdict = verdict.strip().upper()
+        confidence = _valid_confidence(confidence)
+        levels = _directional_levels(clean_verdict, spot_price, target_1w, target_15d, stop_loss)
+
         # Son 15 dakika içinde aynı hissede mükerrer kayıt açılmasını engelle (güncelle)
         history = self.memory_data.get("history", [])
         for item in reversed(history):
@@ -113,11 +145,9 @@ class BistCommitteeMemory:
                     last_dt = datetime.strptime(item["date"], "%Y-%m-%d %H:%M:%S")
                     if (now_dt - last_dt).total_seconds() < 900:  # 15 dakika
                         item["spot_price"] = round(spot_price, 2)
-                        item["verdict"] = verdict.strip().upper()
+                        item["verdict"] = clean_verdict
                         item["confidence"] = confidence
-                        item["target_1w"] = _round_or_none(target_1w)
-                        item["target_15d"] = _round_or_none(target_15d)
-                        item["stop_loss"] = _round_or_none(stop_loss)
+                        item.update(levels)
                         item["bull_thesis_summary"] = bull_thesis_summary[:300]
                         item["bear_thesis_summary"] = bear_thesis_summary[:300]
                         item["cmf_score"] = round(cmf_score, 3)
@@ -134,11 +164,9 @@ class BistCommitteeMemory:
             "full_ticker": f"{clean_ticker}.IS",
             "date": forecast_date,
             "spot_price": round(spot_price, 2),
-            "verdict": verdict.strip().upper(),
+            "verdict": clean_verdict,
             "confidence": confidence,
-            "target_1w": _round_or_none(target_1w),
-            "target_15d": _round_or_none(target_15d),
-            "stop_loss": _round_or_none(stop_loss),
+            **levels,
             "bull_thesis_summary": bull_thesis_summary[:300],
             "bear_thesis_summary": bear_thesis_summary[:300],
             "cmf_score": round(cmf_score, 3),

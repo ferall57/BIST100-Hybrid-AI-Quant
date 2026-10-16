@@ -198,6 +198,7 @@ Aşağıdaki Kurumsal Format ile Nihai Komite Kararını (Executive Decision) ü
 * **Güven Katsayısı (Confidence):** % [10 ile 100 arasında net bir oran]
 * **1 Haftalık (Kısa Vade) Hedef Bandı:** [X.XX TRY - Y.YY TRY] (Örn: %+X.X getiri potansiyeli)
 * **15-30 Günlük (Orta Vade) Hedef Bandı:** [X.XX TRY - Y.YY TRY] (Örn: %+Y.Y getiri potansiyeli)
+  *(Hedef bantları AL kararında güncel fiyatın ÜSTÜNDE, SAT kararında güncel fiyatın ALTINDA olmalı.)*
 * **Önerilen Portföy Ağırlığı (Allocation):** % [Örn: %3 - %10 arası]
 
 ## 2. ⚖️ 2 Turlu Boğa-Ayı Münazara Hakemliği
@@ -205,7 +206,7 @@ Aşağıdaki Kurumsal Format ile Nihai Komite Kararını (Executive Decision) ü
 
 ## 3. 🎯 Kesin Şartlı Tetikleyiciler (If-Then Execution Triggers)
 * **Boğa Tetik Seviyesi:** [Fiyat] TRY (Bu seviye hacimli aşılırsa alım ağırlığı artırılır)
-* **Ayı Savunma / Stop Seviyesi:** [Fiyat] TRY (Bu seviye kırılırsa pozisyon derhal kapatılır / VİOP Short açılır)
+* **Pozisyon Stop Seviyesi:** [Fiyat] TRY (Kararın kendi zarar kes seviyesi: AL kararında güncel fiyatın ALTINDA, SAT kararında güncel fiyatın ÜSTÜNDE olmalı; fiyat bu seviyeye ulaşırsa pozisyon derhal kapatılır)
 * **ICT Optimal Giriş Taktigi:** [Örn: Piyasa fiyatından acele girmeyiniz; %50 FVG C.E. olan X.XX TRY seviyesine geri çekilme veya X.XX TRY retest desteğinde limit alım yapınız.]
 
 ## 4. 🔬 Ekonometrik & Matematiksel Doğrulama (XAI - Açıklanabilirlik)
