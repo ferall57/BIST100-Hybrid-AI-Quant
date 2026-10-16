@@ -1,5 +1,7 @@
-# BIST 100 (Borsa İstanbul 100) Güncel ve Lokomotif Hisse Listesi
+# Geniş BIST hisse evreni (BIST 100 endeksinin resmi bileşen listesi değildir; 111 sembol).
 # Yahoo Finance üzerinden veri çekerken '.IS' uzatısı gerekmektedir.
+# 16 Ekim 2026: Koza grubunun 2025 kod değişiklikleri işlendi (KOZAL -> TRALT, KOZAA -> TRMET, IPEKE -> TRENJ;
+# Yahoo yeni kodlarda eski geçmişi de veriyor). KNYAS ne KAP'ta ne Yahoo'da bulunduğu için çıkarıldı.
 
 BIST_100_TICKERS = [
     "ACSEL.IS", "ADEL.IS", "ADESE.IS", "AEFES.IS", "AGHOL.IS", "AGROT.IS", "AHGAZ.IS", "AKBNK.IS",
@@ -8,13 +10,13 @@ BIST_100_TICKERS = [
     "BRYAT.IS", "BUCIM.IS", "CANTE.IS", "CCOLA.IS", "CIMSA.IS", "CWENE.IS", "DOAS.IS", "DOHOL.IS",
     "ECILC.IS", "ECZYT.IS", "EGEEN.IS", "EKGYO.IS", "ENJSA.IS", "ENKAI.IS", "ERCB.IS", "EREGL.IS",
     "EUREN.IS", "EUPWR.IS", "FROTO.IS", "GARAN.IS", "GENIL.IS", "GESAN.IS", "GLYHO.IS", "GUBRF.IS",
-    "HALKB.IS", "HEKTS.IS", "IMASM.IS", "IPEKE.IS", "ISCTR.IS", "ISDMR.IS", "ISFIN.IS", "ISGYO.IS",
-    "ISMEN.IS", "IZMDC.IS", "KARSN.IS", "KAYSE.IS", "KCHOL.IS", "KMPUR.IS", "KNYAS.IS",
-    "KONTR.IS", "KONYA.IS", "KORDS.IS", "KOZAA.IS", "KOZAL.IS", "KRDMD.IS", "KZBGY.IS", "MAVI.IS",
+    "HALKB.IS", "HEKTS.IS", "IMASM.IS", "ISCTR.IS", "ISDMR.IS", "ISFIN.IS", "ISGYO.IS",
+    "ISMEN.IS", "IZMDC.IS", "KARSN.IS", "KAYSE.IS", "KCHOL.IS", "KMPUR.IS",
+    "KONTR.IS", "KONYA.IS", "KORDS.IS", "KRDMD.IS", "KZBGY.IS", "MAVI.IS",
     "MGROS.IS", "MIATK.IS", "ODAS.IS", "OTKAR.IS", "OYAKC.IS", "PENGD.IS", "PENTA.IS", "PETKM.IS",
     "PGSUS.IS", "PRKME.IS", "QUAGR.IS", "REEDR.IS", "SAHOL.IS", "SASA.IS", "SAYAS.IS", "SISE.IS",
     "SKBNK.IS", "SNGYO.IS", "SOKM.IS", "TABGD.IS", "TAVHL.IS", "TCELL.IS", "THYAO.IS", "TKFEN.IS",
-    "TMSN.IS", "TOASO.IS", "TSKB.IS", "TTKOM.IS", "TTRAK.IS", "TUKAS.IS", "TUPRS.IS", "TURSG.IS",
+    "TMSN.IS", "TOASO.IS", "TRALT.IS", "TRENJ.IS", "TRMET.IS", "TSKB.IS", "TTKOM.IS", "TTRAK.IS", "TUKAS.IS", "TUPRS.IS", "TURSG.IS",
     "ULKER.IS", "VAKBN.IS", "VAKKO.IS", "VESBE.IS", "VESTL.IS", "YEOTK.IS", "YKBNK.IS", "YYLGD.IS",
     "ZOREN.IS"
 ]

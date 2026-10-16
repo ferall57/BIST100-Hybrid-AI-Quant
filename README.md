@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Kronos--base_102.3M-ee4c2c.svg)
 ![LLM](https://img.shields.io/badge/LLM-Gemini-00a498.svg)
-![Tests](https://img.shields.io/badge/testler-217-brightgreen.svg)
+![Tests](https://img.shields.io/badge/testler-233-brightgreen.svg)
 ![Status](https://img.shields.io/badge/Durum-Deneysel_/_Araştırma-orange.svg)
 
 </div>
@@ -198,7 +198,7 @@ Kronos ağırlıkları ilk kullanımda Hugging Face'ten indirilir. İnce ayarlı
 özeti) tutulur. Yerelde ince ayarlı model yoksa temel Kronos kullanılır.
 
 ```bash
-python -m pytest tests          # 217 test
+python -m pytest tests          # 233 test
 ```
 
 ---
@@ -277,7 +277,9 @@ python main.py --compare-models bist30
   da devrede olduğu günlerde daha kötü getiri öngörmedi; kod içinde hâlâ alım kararını TUT'a çeviriyor.
 - **Veri kaynağı tek ve ücretsiz.** Fiyatlar Yahoo Finance'ten gelir; temettü düzeltmesi yapılmaz, bazı eski
   bölünmeler düzeltilmemiş kalabilir (521.330 mumda tek günde %50'yi aşan 40 sıçrama).
-- **Hisse listesi güncel değil.** BIST100 listesindeki 112 sembolden 4'ü (IPEKE, KNYAS, KOZAL, KOZAA) indirilemiyor.
+- **Hisse listesi resmi BIST100 bileşenleri değil.** `bist100` evreni 111 sembollük geniş bir listedir; endeks
+  bileşenleri değiştikçe elle güncellenir. 16 Ekim 2026'da tüm semboller indirilebildi (Koza grubunun 2025 kod
+  değişiklikleri işlendi, listede olmayan KNYAS çıkarıldı).
 - **Sabit varsayımlar.** VİOP teminat oranları, Monte Carlo sıçrama parametreleri ve Black-Litterman beklenen getirisi
   kodda sabittir.
 - **Bağımlılık sürümleri sabitlenmemiştir.**
