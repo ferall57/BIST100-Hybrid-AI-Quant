@@ -487,6 +487,28 @@ def handle_ablation(mode: str = "bist30", months: int = 12):
     except Exception as e:
         print(f"\n[KATKI ÖLÇÜMÜ HATASI] {e}")
 
+def handle_veto_study(mode: str = "bist30", months: int = 24):
+    try:
+        from bist_quant.bist_100_tickers import get_tickers
+        from bist_quant.bist_veto_study import CONDITION_LABELS, run_study_for_universe
+        print(f"▶️ {mode.upper()} için son {months} ay ölçülüyor (her noktada 1.000 yollu MC; birkaç dakika sürebilir)...", flush=True)
+        summaries, report_path, n_tickers = run_study_for_universe(get_tickers(mode=mode), months=months)
+        print("\n" + "="*118)
+        print(f"MC + PARA ÇIKIŞI VETOSU ÖLÇÜMÜ - {n_tickers} hisse, son {months} ay, ileri getiri devrede / devre dışı")
+        print("="*118)
+        print(f"{'Koşul':<30} {'Vade':<5} {'Devrede':<8} {'%':<6} {'Getiri D/DD %':<16} {'Fazla D/DD %':<16} {'Negatif D/DD %':<16} {'Kötü hisse':<11} {'p':<6}")
+        print("-" * 118)
+        for s in summaries:
+            ret = f"{_fmt(s['mean_fired'])}/{_fmt(s['mean_quiet'])}"
+            exc = f"{_fmt(s['mean_excess_fired'])}/{_fmt(s['mean_excess_quiet'])}"
+            neg = f"{_fmt(s['share_negative_fired_pct'], '.0f')}/{_fmt(s['share_negative_quiet_pct'], '.0f')}"
+            print(f"{CONDITION_LABELS[s['condition']]:<30} {s['horizon']:<5} {s['fired']:<8} {s['fire_rate_pct']:<6.1f} {ret:<16} {exc:<16} {neg:<16} "
+                  f"{s['tickers_fired_worse']}/{s['tickers_compared']:<9} {_fmt(s['p_value'], '.3f'):<6}")
+        print("="*118)
+        print(f"Rapor: {report_path}")
+    except Exception as e:
+        print(f"\n[VETO ÖLÇÜMÜ HATASI] {e}")
+
 def _fmt(value, spec: str = "+.2f") -> str:
     return "—" if value is None else format(value, spec)
 
@@ -584,6 +606,7 @@ def main():
     parser.add_argument("--backtest", type=str, metavar="SEMBOL", help="Seçilen hissede geçmiş N aylık Walk-Forward Backtest simülasyonu çalıştır")
     parser.add_argument("--backtest-universe", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Aynı backtest kurallarını tüm evrende koş; medyan fark ve Al-Tut'u geçen hisse oranını raporla")
     parser.add_argument("--ablation", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Giriş kurallarını (ICT, para akışı, XU100 kapısı, rejim filtresi) tek tek açıp kapatarak her birinin backtest sonucuna katkısını ölç")
+    parser.add_argument("--veto-study", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="MC + para çıkışı vetosunun devrede olduğu günlerin ileri getirisini devre dışı günlerle karşılaştır (--months ile dönem)")
     parser.add_argument("--score-decisions", action="store_true", help="Hafızadaki komite kararlarını 5 ve 10 işlem günü sonra gerçekleşen getiriyle ve XU100'e göre ölç")
     parser.add_argument("--compare-models", type=str, nargs="?", const="bist30", default=None, choices=["bist30", "bist100"], help="Temel Kronos ile ince ayarlı modelleri aynı hisse ve tarihlerde tahmin isabetine göre karşılaştır")
     parser.add_argument("--origins", type=int, default=12, help="Model karşılaştırmasında hisse başına tahmin noktası sayısı")
@@ -659,6 +682,8 @@ def main():
                         commission_bps=args.commission_bps, slippage_bps=args.slippage_bps, fixed_tp=args.fixed_tp)
     if args.ablation:
         handle_ablation(mode=args.ablation, months=args.months)
+    if args.veto_study:
+        handle_veto_study(mode=args.veto_study, months=args.months)
     if args.score_decisions:
         handle_score_decisions()
     if args.compare_models:
